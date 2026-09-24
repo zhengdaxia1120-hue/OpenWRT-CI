@@ -41,56 +41,78 @@ UPDATE_PACKAGE() {
 	fi
 }
 
-# 调用示例
-# UPDATE_PACKAGE "OpenAppFilter" "destan19/OpenAppFilter" "master" "" "custom_name1 custom_name2"
-# UPDATE_PACKAGE "open-app-filter" "destan19/OpenAppFilter" "master" "" "luci-app-appfilter oaf" 这样会把原有的open-app-filter，luci-app-appfilter，oaf相关组件删除，不会出现coremark错误。
-
-# UPDATE_PACKAGE "包名" "项目地址" "项目分支" "pkg，可选，从大杂烩中单独提取包名插件"
+# =========================
+# LuCI 主题
+# =========================
 UPDATE_PACKAGE "argon" "sbwml/luci-theme-argon" "openwrt-25.12"
-UPDATE_PACKAGE "aurora" "eamonxg/luci-theme-aurora" "master"
-UPDATE_PACKAGE "aurora-config" "eamonxg/luci-app-aurora-config" "master"
-UPDATE_PACKAGE "kucat" "sirpdboy/luci-theme-kucat" "master"
-UPDATE_PACKAGE "kucat-config" "sirpdboy/luci-app-kucat-config" "master"
-UPDATE_PACKAGE "noobwrt" "nooblk-98/luci-theme-noobwrt" "master"
-UPDATE_PACKAGE "shadcn" "eamonxg/luci-theme-shadcn" "main"
-UPDATE_PACKAGE "theme-fluent" "LazuliKao/luci-theme-fluent" "main"
 
-UPDATE_PACKAGE "momo" "nikkinikki-org/OpenWrt-momo" "main"
-UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
+# =========================
+# 科学上网
+# =========================
 UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "dev" "pkg"
-UPDATE_PACKAGE "passwall" "Openwrt-Passwall/openwrt-passwall" "main" "pkg"
-UPDATE_PACKAGE "passwall2" "Openwrt-Passwall/openwrt-passwall2" "main" "pkg"
 
-UPDATE_PACKAGE "diskmanager" "4IceG/luci-app-mini-diskmanager" "main"
-UPDATE_PACKAGE "easytier" "EasyTier/luci-app-easytier" "main"
-UPDATE_PACKAGE "qmodem" "FUjr/QModem" "main"
-UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub gecoosac sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"
-UPDATE_PACKAGE "vnt" "lmq8267/luci-app-vnt" "main"
+# =========================
+# 网络/系统工具
+# =========================
+# UPDATE_PACKAGE "ddns-go" "sirpdboy/luci-app-ddns-go" "main"
+# UPDATE_PACKAGE "netspeedtest" "sirpdboy/netspeedtest" "main" "" "homebox ookla-speedtest"
+# UPDATE_PACKAGE "netwizard" "sirpdboy/luci-app-netwizard" "main"
+# UPDATE_PACKAGE "timecontrol" "sirpdboy/luci-app-timecontrol" "main"
 
-UPDATE_PACKAGE "diskman" "sbwml/luci-app-diskman" "main"
-UPDATE_PACKAGE "mosdns" "sbwml/luci-app-mosdns" "v5" "" "v2dat"
-UPDATE_PACKAGE "openlist2" "sbwml/luci-app-openlist2" "main"
-UPDATE_PACKAGE "qbittorrent" "sbwml/luci-app-qbittorrent" "master" "" "qt6base qt6tools rblibtorrent"
-UPDATE_PACKAGE "quickfile" "sbwml/luci-app-quickfile" "main"
+# =========================
+# Viking 扩展包
+# =========================
+# UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub gecoosac sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"
 
-UPDATE_PACKAGE "ddns-go" "sirpdboy/luci-app-ddns-go" "main"
-UPDATE_PACKAGE "netspeedtest" "sirpdboy/netspeedtest" "main" "" "homebox ookla-speedtest"
-UPDATE_PACKAGE "netwizard" "sirpdboy/luci-app-netwizard" "main"
-UPDATE_PACKAGE "partexp" "sirpdboy/luci-app-partexp" "main"
-UPDATE_PACKAGE "timecontrol" "sirpdboy/luci-app-timecontrol" "main"
+# =========================
+# 其他插件（暂不使用）
+# =========================
+# UPDATE_PACKAGE "momo" "nikkinikki-org/OpenWrt-momo" "main"
+# UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
+# UPDATE_PACKAGE "passwall" "Openwrt-Passwall/openwrt-passwall" "main" "pkg"
+# UPDATE_PACKAGE "passwall2" "Openwrt-Passwall/openwrt-passwall2" "main" "pkg"
 
-UPDATE_PACKAGE "natmapt" "muink/openwrt-natmapt" "master"
-UPDATE_PACKAGE "stuntman" "muink/openwrt-stuntman" "master"
-UPDATE_PACKAGE "luci-app-natmapt" "muink/luci-app-natmapt" "master"
+# =========================
+# 存储相关：无外挂硬盘，不使用
+# =========================
+# UPDATE_PACKAGE "diskmanager" "4IceG/luci-app-mini-diskmanager" "main"
+# UPDATE_PACKAGE "diskman" "sbwml/luci-app-diskman" "main"
+# UPDATE_PACKAGE "partexp" "sirpdboy/luci-app-partexp" "main"
+# UPDATE_PACKAGE "openlist2" "sbwml/luci-app-openlist2" "main"
+# UPDATE_PACKAGE "qbittorrent" "sbwml/luci-app-qbittorrent" "master" "" "qt6base qt6tools rblibtorrent"
+# UPDATE_PACKAGE "quickfile" "sbwml/luci-app-quickfile" "main"
 
-UPDATE_PACKAGE "airpi3000m-fancontrol" "LianXia233/luci-app-airpi3000m-fancontrol" "main"
-UPDATE_PACKAGE "chfs" "LianXia233/luci-app-chfs" "main"
-UPDATE_PACKAGE "fm350" "LianXia233/luci-app-fm350" "main"
-UPDATE_PACKAGE "h5000m-netmode" "LianXia233/luci-app-h5000m-netmode" "main"
-UPDATE_PACKAGE "mt5700" "LianXia233/luci-app-mt5700" "main"
-UPDATE_PACKAGE "mt5700m" "LianXia233/luci-app-mt5700m" "main"
-UPDATE_PACKAGE "netmonitor" "LianXia233/luci-app-netmonitor" "main"
-UPDATE_PACKAGE "qmodem-generic" "LianXia233/luci-app-qmodem-generic" "main"
+# =========================
+# DNS
+# =========================
+# 如果确定不用 mosdns，则暂时不加入
+# UPDATE_PACKAGE "mosdns" "sbwml/luci-app-mosdns" "v5" "" "v2dat"
+
+# =========================
+# NAT / STUN
+# =========================
+# CONFIG_PACKAGE_luci-app-natmapt=n，所以这里不拉
+# UPDATE_PACKAGE "natmapt" "muink/openwrt-natmapt" "master"
+# UPDATE_PACKAGE "stuntman" "muink/openwrt-stuntman" "master"
+# UPDATE_PACKAGE "luci-app-natmapt" "muink/luci-app-natmapt" "master"
+
+# =========================
+# 4G / 5G Modem
+# =========================
+# UPDATE_PACKAGE "qmodem" "FUjr/QModem" "main"
+# UPDATE_PACKAGE "fm350" "LianXia233/luci-app-fm350" "main"
+# UPDATE_PACKAGE "h5000m-netmode" "LianXia233/luci-app-h5000m-netmode" "main"
+# UPDATE_PACKAGE "mt5700" "LianXia233/luci-app-mt5700" "main"
+# UPDATE_PACKAGE "mt5700m" "LianXia233/luci-app-mt5700m" "main"
+# UPDATE_PACKAGE "qmodem-generic" "LianXia233/luci-app-qmodem-generic" "main"
+
+# =========================
+# 其他硬件专用插件
+# =========================
+# UPDATE_PACKAGE "airpi3000m-fancontrol" "LianXia233/luci-app-airpi3000m-fancontrol" "main"
+# UPDATE_PACKAGE "chfs" "LianXia233/luci-app-chfs" "main"
+# UPDATE_PACKAGE "netmonitor" "LianXia233/luci-app-netmonitor" "main"
+# UPDATE_PACKAGE "vnt" "lmq8267/luci-app-vnt" "main"
 
 #更新软件包版本
 UPDATE_VERSION() {
