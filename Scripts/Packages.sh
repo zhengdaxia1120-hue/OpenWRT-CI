@@ -61,12 +61,13 @@ UPDATE_PACKAGE() {
 # =========================
 # LuCI 主题
 # =========================
-UPDATE_PACKAGE "argon" "sbwml/luci-theme-argon" "openwrt-25.12"
+# UPDATE_PACKAGE "argon" "sbwml/luci-theme-argon" "openwrt-25.12"
+UPDATE_PACKAGE "argon" "jerrykuku/luci-theme-argon" "master"
 
 # =========================
 # 科学上网
 # =========================
-UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "dev" "pkg"
+UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "master" "pkg"
 
 # =========================
 # 网络/系统工具
