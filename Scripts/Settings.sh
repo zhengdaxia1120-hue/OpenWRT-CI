@@ -1,20 +1,71 @@
-# WIFI 默认配置
-WIFI_SH=$(find ./target/linux/{mediatek/filogic,qualcommax}/base-files/etc/uci-defaults/ -type f -name "*set-wireless.sh" 2>/dev/null)
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Copyright (C) 2026 VIKINGYFY
+
+# 移除 luci-app-attendedsysupgrade
+sed -i "/attendedsysupgrade/d" $(find ./feeds/luci/collections/ -type f -name "Makefile")
+
+# 修改默认主题
+sed -i "s/luci-theme-bootstrap/luci-theme-$WRT_THEME/g" $(find ./feeds/luci/collections/ -type f -name "Makefile")
+
+# 修改 immortalwrt.lan 关联 IP
+sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" \
+	$(find ./feeds/luci/modules/luci-mod-system/ -type f -name "flash.js")
+
+# 添加编译日期标识
+sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" \
+	$(find ./feeds/luci/modules/luci-mod-status/ -type f -name "10_system.js")
+
+
+# WIFI 配置
+WIFI_SH=$(find ./target/linux/{mediatek/filogic,qualcommax}/base-files/etc/uci-defaults/ \
+	-type f -name "*set-wireless.sh" 2>/dev/null)
+
 WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
 
 if [ -f "$WIFI_SH" ]; then
 	# 修改 WIFI 名称
-	sed -i "s/BASE_SSID='.*'/BASE_SSID='$WRT_SSID'/g" $WIFI_SH
+	sed -i "s/BASE_SSID='.*'/BASE_SSID='$WRT_SSID'/g" "$WIFI_SH"
 
 	# 修改 WIFI 密码
-	sed -i "s/BASE_WORD='.*'/BASE_WORD='$WRT_WORD'/g" $WIFI_SH
+	sed -i "s/BASE_WORD='.*'/BASE_WORD='$WRT_WORD'/g" "$WIFI_SH"
 
 elif [ -f "$WIFI_UC" ]; then
 	# 修改 WIFI 名称
-	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g" $WIFI_UC
+	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g" "$WIFI_UC"
 
 	# 修改 WIFI 密码
-	sed -i "s/key='.*'/key='$WRT_WORD'/g" $WIFI_UC
+	sed -i "s/key='.*'/key='$WRT_WORD'/g" "$WIFI_UC"
+fi
+
+
+# 默认配置文件
+CFG_FILE="./package/base-files/files/bin/config_generate"
+
+# 修改默认 IP 地址
+sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" "$CFG_FILE"
+
+# 修改默认主机名
+sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" "$CFG_FILE"
+
+
+# 配置文件修改
+echo "CONFIG_PACKAGE_luci=y" >> ./.config
+echo "CONFIG_LUCI_LANG_zh_Hans=y" >> ./.config
+echo "CONFIG_PACKAGE_luci-theme-$WRT_THEME=y" >> ./.config
+echo "CONFIG_PACKAGE_luci-app-$WRT_THEME-config=y" >> ./.config
+
+
+# 引入私有扩展配置
+if [ -f "$GITHUB_WORKSPACE/Config/PRIVATE.txt" ]; then
+	echo "Applying private configurations from PRIVATE.txt..."
+	cat "$GITHUB_WORKSPACE/Config/PRIVATE.txt" >> ./.config
+fi
+
+
+# 手动调整的插件
+if [ -n "$WRT_PACKAGE" ]; then
+	echo -e "$WRT_PACKAGE" >> ./.config
 fi
 
 
@@ -31,7 +82,7 @@ if [[ "${WRT_TARGET^^}" == *"QUALCOMMAX"* ]]; then
 
 	# 无 WIFI 配置调整 Q6 大小
 	if [[ "${WRT_CONFIG,,}" == *"wifi"* && "${WRT_CONFIG,,}" == *"no"* ]]; then
-		find $DTS_PATH -type f ! -iname '*nowifi*' -exec \
+		find "$DTS_PATH" -type f ! -iname '*nowifi*' -exec \
 			sed -i 's/ipq\(6018\|8074\).dtsi/ipq\1-nowifi.dtsi/g' {} +
 
 		echo "qualcommax set up nowifi successfully!"
