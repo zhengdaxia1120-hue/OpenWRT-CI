@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 VIKINGYFY
 
-#安装和更新软件包
+# 安装和更新软件包
 UPDATE_PACKAGE() {
 	local PKG_NAME=$1
 	local PKG_REPO=$2
 	local PKG_BRANCH=$3
 	local PKG_SPECIAL=$4
-	local PKG_LIST=("$PKG_NAME" $5)  # 第5个参数为自定义名称列表
+	local PKG_LIST=("$PKG_NAME" $5)
 	local REPO_NAME=${PKG_REPO#*/}
 	local REPO_PATH="./package/$REPO_NAME"
 
@@ -16,28 +16,45 @@ UPDATE_PACKAGE() {
 
 	# 删除本地可能存在的不同名称的软件包
 	for NAME in "${PKG_LIST[@]}"; do
-		# 查找匹配的目录
 		echo "Search directory: $NAME"
-		local FOUND_DIRS=$(find ./feeds/luci/ ./feeds/packages/ -maxdepth 3 -type d -iname "*$NAME*" 2>/dev/null)
 
-		# 删除找到的目录
+		local FOUND_DIRS
+		FOUND_DIRS=$(find ./feeds/luci/ ./feeds/packages/ \
+			-maxdepth 3 -type d -iname "*$NAME*" 2>/dev/null)
+
 		if [ -n "$FOUND_DIRS" ]; then
 			while read -r DIR; do
+				[ -n "$DIR" ] || continue
 				rm -rf "$DIR"
 				echo "Delete directory: $DIR"
 			done <<< "$FOUND_DIRS"
 		else
-			echo "Not fonud directory: $NAME"
+			echo "Not found directory: $NAME"
 		fi
 	done
 
-	# 克隆 GitHub 仓库
-	git clone --depth=1 --single-branch --branch $PKG_BRANCH "https://github.com/$PKG_REPO.git" $REPO_PATH
+	# 删除之前可能存在的同名仓库
+	rm -rf "$REPO_PATH"
 
-	# 处理克隆的仓库
+	# 克隆 GitHub 仓库
+	echo "Clone: https://github.com/$PKG_REPO.git"
+	git clone --depth=1 --single-branch \
+		--branch "$PKG_BRANCH" \
+		"https://github.com/$PKG_REPO.git" \
+		"$REPO_PATH"
+
+	if [ $? -ne 0 ]; then
+		echo "Failed to clone $PKG_REPO"
+		return 1
+	fi
+
+	# 处理需要提取 package 的仓库
 	if [[ "$PKG_SPECIAL" == "pkg" ]]; then
-		find $REPO_PATH/*/ -maxdepth 3 -type d -iname "*$PKG_NAME*" -prune -exec cp -rf {} ./package \;
-		rm -rf $REPO_PATH
+		find "$REPO_PATH" -mindepth 2 -maxdepth 3 \
+			-type d -iname "*$PKG_NAME*" -prune \
+			-exec cp -rf {} ./package \;
+
+		rm -rf "$REPO_PATH"
 	fi
 }
 
@@ -114,11 +131,17 @@ UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "dev" "pkg"
 # UPDATE_PACKAGE "netmonitor" "LianXia233/luci-app-netmonitor" "main"
 # UPDATE_PACKAGE "vnt" "lmq8267/luci-app-vnt" "main"
 
-#更新软件包版本
+
+# 更新软件包版本
 UPDATE_VERSION() {
 	local PKG_NAME=$1
 	local PKG_MARK=${2:-false}
-	local PKG_FILES=$(find ./ ./feeds/packages/ -maxdepth 3 -type f -wholename "*/$PKG_NAME/Makefile")
+
+	local PKG_FILES
+	PKG_FILES=$(find ./ ./feeds/packages/ \
+		-maxdepth 3 \
+		-type f \
+		-wholename "*/$PKG_NAME/Makefile")
 
 	if [ -z "$PKG_FILES" ]; then
 		echo "$PKG_NAME not found!"
@@ -128,26 +151,66 @@ UPDATE_VERSION() {
 	echo -e "\n$PKG_NAME version update has started!"
 
 	for PKG_FILE in $PKG_FILES; do
-		local PKG_REPO=$(grep -Po "PKG_SOURCE_URL:=https://.*github.com/\K[^/]+/[^/]+(?=.*)" $PKG_FILE)
-		local PKG_TAG=$(curl -sL "https://api.github.com/repos/$PKG_REPO/releases" | jq -r "map(select(.prerelease == $PKG_MARK)) | first | .tag_name")
 
-		local OLD_VER=$(grep -Po "PKG_VERSION:=\K.*" "$PKG_FILE")
-		local OLD_URL=$(grep -Po "PKG_SOURCE_URL:=\K.*" "$PKG_FILE")
-		local OLD_FILE=$(grep -Po "PKG_SOURCE:=\K.*" "$PKG_FILE")
-		local OLD_HASH=$(grep -Po "PKG_HASH:=\K.*" "$PKG_FILE")
+		local PKG_REPO
+		PKG_REPO=$(grep -Po \
+			"PKG_SOURCE_URL:=https://.*github.com/\K[^/]+/[^/]+(?=.*)" \
+			"$PKG_FILE")
 
-		local PKG_URL=$([[ "$OLD_URL" == *"releases"* ]] && echo "${OLD_URL%/}/$OLD_FILE" || echo "${OLD_URL%/}")
+		if [ -z "$PKG_REPO" ]; then
+			echo "$PKG_NAME GitHub repository not found!"
+			continue
+		fi
 
-		local NEW_VER=$(echo $PKG_TAG | sed -E 's/[^0-9]+/\./g; s/^\.|\.$//g')
-		local NEW_URL=$(echo $PKG_URL | sed "s/\$(PKG_VERSION)/$NEW_VER/g; s/\$(PKG_NAME)/$PKG_NAME/g")
-		local NEW_HASH=$(curl -sL "$NEW_URL" | sha256sum | cut -d ' ' -f 1)
+		local PKG_TAG
+		PKG_TAG=$(curl -sL \
+			"https://api.github.com/repos/$PKG_REPO/releases" |
+			jq -r "map(select(.prerelease == $PKG_MARK)) | first | .tag_name")
+
+		if [ -z "$PKG_TAG" ] || [ "$PKG_TAG" = "null" ]; then
+			echo "$PKG_NAME latest release not found!"
+			continue
+		fi
+
+		local OLD_VER
+		local OLD_URL
+		local OLD_FILE
+		local OLD_HASH
+
+		OLD_VER=$(grep -Po "PKG_VERSION:=\K.*" "$PKG_FILE")
+		OLD_URL=$(grep -Po "PKG_SOURCE_URL:=\K.*" "$PKG_FILE")
+		OLD_FILE=$(grep -Po "PKG_SOURCE:=\K.*" "$PKG_FILE")
+		OLD_HASH=$(grep -Po "PKG_HASH:=\K.*" "$PKG_FILE")
+
+		local PKG_URL
+		PKG_URL=$(
+			[[ "$OLD_URL" == *"releases"* ]] &&
+			echo "${OLD_URL%/}/$OLD_FILE" ||
+			echo "${OLD_URL%/}"
+		)
+
+		local NEW_VER
+		NEW_VER=$(echo "$PKG_TAG" |
+			sed -E 's/[^0-9]+/\./g; s/^\.|\.$//g')
+
+		local NEW_URL
+		NEW_URL=$(echo "$PKG_URL" |
+			sed "s/\$(PKG_VERSION)/$NEW_VER/g; s/\$(PKG_NAME)/$PKG_NAME/g")
+
+		local NEW_HASH
+		NEW_HASH=$(curl -sL "$NEW_URL" |
+			sha256sum |
+			cut -d ' ' -f 1)
 
 		echo "old version: $OLD_VER $OLD_HASH"
 		echo "new version: $NEW_VER $NEW_HASH"
 
-		if [[ "$NEW_VER" =~ ^[0-9].* ]] && dpkg --compare-versions "$OLD_VER" lt "$NEW_VER"; then
+		if [[ "$NEW_VER" =~ ^[0-9].* ]] &&
+			dpkg --compare-versions "$OLD_VER" lt "$NEW_VER"; then
+
 			sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=$NEW_VER/g" "$PKG_FILE"
 			sed -i "s/PKG_HASH:=.*/PKG_HASH:=$NEW_HASH/g" "$PKG_FILE"
+
 			echo "$PKG_FILE version has been updated!"
 		else
 			echo "$PKG_FILE version is already the latest!"
@@ -155,10 +218,11 @@ UPDATE_VERSION() {
 	done
 }
 
-#UPDATE_VERSION "软件包名" "测试版，true，可选，默认为否"
-#UPDATE_VERSION "sing-box"
+# UPDATE_VERSION "软件包名" "测试版，true，可选，默认为否"
+# UPDATE_VERSION "sing-box"
 
-#引入私有扩展脚本
+
+# 引入私有扩展脚本
 if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
 	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"
 fi
