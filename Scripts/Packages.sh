@@ -72,7 +72,7 @@ echo " "
 echo "Search directory: openclash"
 rm -rf ./feeds/luci/applications/luci-app-openclash
 rm -rf ./package/OpenClash
-git clone --depth=1 --single-branch --branch dev \
+git clone --depth=1 --single-branch --branch master \
     https://github.com/vernesong/OpenClash.git ./package/OpenClash
 find ./package/OpenClash -maxdepth 2 -type d -iname "luci-app-openclash" \
     -exec cp -rf {} ./package/ \;
