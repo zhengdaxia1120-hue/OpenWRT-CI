@@ -91,3 +91,21 @@ if [[ "${WRT_TARGET^^}" == *"QUALCOMMAX"* ]]; then
 	fi
 
 fi
+
+# ===== OpenClash: restart 时 stop 后等待，避免白名单更新后只停不启 =====
+echo "Patching OpenClash restart() sleep..."
+
+OC_INIT="$(find ./package ./feeds -type f -path '*/luci-app-openclash/root/etc/init.d/openclash' 2>/dev/null | head -n1)"
+
+if [ -n "$OC_INIT" ] && [ -f "$OC_INIT" ]; then
+	if ! grep -A2 'stop_service' "$OC_INIT" | grep -q 'sleep 5'; then
+		sed -i '/stop_service/{
+n
+/^[[:space:]]*start[[:space:]]*$/i\   sleep 5
+}' "$OC_INIT"
+	fi
+	echo "OpenClash init patched: $OC_INIT"
+	grep -n -A8 'stop_service' "$OC_INIT" | head -15
+else
+	echo "WARNING: luci-app-openclash init.d not found, skip patch"
+fi
