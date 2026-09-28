@@ -1,13 +1,8 @@
-# SPDX-License-Identifier: MIT
-# Copyright (C) 2026 VIKINGYFY
-
 name: Cache-Clean
 
 on:
-  #自动清理：每周一早上4点
   schedule:
     - cron: 0 20 * * 0
-  #手动清理
   workflow_dispatch:
 
 permissions: write-all
@@ -16,8 +11,8 @@ env:
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
 jobs:
-  cleanup:
-    runs-on: ubuntu-24.04
+  auto_clean:
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout Projects
         uses: actions/checkout@main
