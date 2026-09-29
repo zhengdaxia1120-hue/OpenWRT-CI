@@ -51,18 +51,6 @@ UPDATE_PACKAGE "argon" "jerrykuku/luci-theme-argon" "master"
 # =========================
 # 科学上网
 # =========================
-UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "dev" "pkg"
-#echo " "
-#echo "Search directory: openclash"
-#rm -rf ./feeds/luci/applications/luci-app-openclash
-#rm -rf ./package/OpenClash
-#git clone --depth=1 --single-branch --branch master \
-#   https://github.com/vernesong/OpenClash.git ./package/OpenClash
-#find ./package/OpenClash -maxdepth 2 -type d -iname "luci-app-openclash" \
-#    -exec cp -rf {} ./package/ \;
-#rm -rf ./package/OpenClash#!/bin/bash
-
-
 # UPDATE_PACKAGE "包名" "项目地址" "项目分支" "pkg，可选，从大杂烩中单独提取包名插件"
 UPDATE_PACKAGE "argon" "sbwml/luci-theme-argon" "openwrt-25.12"
 UPDATE_PACKAGE "aurora" "eamonxg/luci-theme-aurora" "master"
