@@ -93,7 +93,7 @@ if [[ "${WRT_TARGET^^}" == *"QUALCOMMAX"* ]]; then
 fi
 
 #
-# ===== 内置 0 点openclash自动更新 =====
+# ===== 内置 0 点openclash数据与订阅自动更新 =====
 mkdir -p files/etc/init.d files/etc/uci-defaults
 
 cat > files/etc/data-update.sh <<'EOF'
