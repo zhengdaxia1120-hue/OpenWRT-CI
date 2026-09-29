@@ -38,7 +38,6 @@ jobs:
         CONFIG: [IPQ807X-WIFI-YES,IPQ807X-WIFI-NO]
         SOURCE: [VIKINGYFY/immortalwrt]
         BRANCH: [main]
-；
     #调用公用编译核心WRT-CORE.yml
     uses: ./.github/workflows/WRT-CORE.yml
     with:
