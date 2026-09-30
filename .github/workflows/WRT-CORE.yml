@@ -112,6 +112,11 @@ jobs:
             echo "WRT_KVER=none"
             echo "WRT_LIST=none"
           } >> "$GITHUB_ENV"
+
+          if [[ "${WRT_CONFIG,,}" == *"wifi-no"* ]]; then
+            echo "WRT_WIFI=wifi-no" >> "$GITHUB_ENV"
+          fi
+
           echo "cache_prefix=$WRT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
 
       - name: Clone Code
