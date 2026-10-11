@@ -48,9 +48,7 @@ UPDATE_PACKAGE() {
 # UPDATE_PACKAGE "argon" "sbwml/luci-theme-argon" "openwrt-25.12"
 UPDATE_PACKAGE "argon" "jerrykuku/luci-theme-argon" "master"
 # =========================
-# AdGuardHome
-# =========================
-UPDATE_PACKAGE "luci-app-adguardhome" "rufengsuixing/luci-app-adguardhome" "master" "" "adguardhome luci-app-adguardhome"
+
 # =========================
 # 科学上网
 # =========================
