@@ -48,6 +48,8 @@ UPDATE_PACKAGE() {
 # UPDATE_PACKAGE "argon" "sbwml/luci-theme-argon" "openwrt-25.12"
 UPDATE_PACKAGE "argon" "jerrykuku/luci-theme-argon" "master"
 # =========================
+UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub gecoosac sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"
+
 # =========================
 # AdGuardHome
 # =========================
