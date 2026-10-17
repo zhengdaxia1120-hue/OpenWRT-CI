@@ -271,48 +271,7 @@ else
 	echo ">>> 未找到 luci-app-adguardhome 的 update_core.sh，跳过替换"
 fi
 
+
+
 echo ">>> PRIVATE.sh 执行完毕"
 
-
-
-#!/bin/sh
-# 文件路径：files/etc/uci-defaults/99-samba-user.sh
-
-USER=smbuser
-PASS="请改成你的密码"
-SHARE=/root/share          # 有 USB 盘用 /mnt/xxx，没有的话改成 /root/share
-UID_NUM=1001
-
-# 1. 手动创建系统用户（不需要 useradd）
-grep -q "^$USER:" /etc/group  || echo "$USER:x:$UID_NUM:" >> /etc/group
-grep -q "^$USER:" /etc/passwd || echo "$USER:x:$UID_NUM:$UID_NUM:$USER:/var/empty:/bin/false" >> /etc/passwd
-grep -q "^$USER:" /etc/shadow || echo "$USER:*:0:0:99999:7:::" >> /etc/shadow
-
-# 2. 设置 Samba 密码（需要 samba4-server）
-if command -v smbpasswd >/dev/null 2>&1; then
-    printf '%s\n%s\n' "$PASS" "$PASS" | smbpasswd -a -s "$USER"
-else
-    echo "smbpasswd 不存在，请确认固件已包含 samba4-server" >&2
-fi
-
-# 3. 创建共享目录并赋权
-mkdir -p "$SHARE"
-chown -R "$USER:$USER" "$SHARE"
-
-# 4. 写入 Samba 共享配置（固定名称，重复运行不会产生多余条目）
-uci -q delete samba4.smbshare
-uci set samba4.smbshare=sambashare
-uci set samba4.smbshare.name='share'
-uci set samba4.smbshare.path="$SHARE"
-uci set samba4.smbshare.users="$USER"
-uci set samba4.smbshare.read_only='no'
-uci set samba4.smbshare.guest_ok='no'
-uci set samba4.smbshare.create_mask='0644'
-uci set samba4.smbshare.dir_mask='0755'
-uci commit samba4
-
-# 5. 启动 Samba
-/etc/init.d/samba4 enable
-/etc/init.d/samba4 restart
-
-exit 0
