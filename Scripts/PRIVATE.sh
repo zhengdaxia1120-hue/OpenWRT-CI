@@ -277,7 +277,7 @@ echo ">>> PRIVATE.sh 执行完毕"
 
 # =================== 自定义添加 Samba 用户与目录赋权 ===================
 mkdir -p ./files/etc/uci-defaults
-cat << 'EOF' > ./files/etc/uci-defaults/99-samba-user.sh
+cat << 'EOF' > ./files/etc/uci-defaults/98-samba-user.sh
 #!/bin/sh
 
 # 1. 检查并添加系统用户 shareuser
