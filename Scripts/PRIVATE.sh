@@ -293,6 +293,6 @@ chown -R shareuser:shareuser /root/share
 
 exit 0
 EOF
-chmod +x ./files/etc/uci-defaults/99-samba-user.sh
+chmod +x ./files/etc/uci-defaults/98-samba-user.sh
 
 
