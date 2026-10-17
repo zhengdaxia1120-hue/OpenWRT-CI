@@ -272,3 +272,27 @@ else
 fi
 
 echo ">>> PRIVATE.sh 执行完毕"
+
+
+
+# =================== 自定义添加 Samba 用户与目录赋权 ===================
+mkdir -p ./files/etc/uci-defaults
+cat << 'EOF' > ./files/etc/uci-defaults/99-samba-user.sh
+#!/bin/sh
+
+# 1. 检查并添加系统用户 shareuser
+if ! grep -q "shareuser" /etc/passwd; then
+    useradd -m -s /bin/false shareuser
+    echo "shareuser:zbc" | chpasswd
+    (echo "zbc"; echo "zbc") | smbpasswd -a shareuser
+fi
+
+# 2. 确保共享文件夹存在，并把所有权给这个新用户（防止以后往里传文件提示无权限）
+mkdir -p /root/share
+chown -R shareuser:shareuser /root/share
+
+exit 0
+EOF
+chmod +x ./files/etc/uci-defaults/99-samba-user.sh
+
+
