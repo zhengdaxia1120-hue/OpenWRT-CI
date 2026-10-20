@@ -59,3 +59,11 @@ if [ -d "$FEEDS_PATH/packages/lang/rust" ]; then
 		echo "rust fix failed; continuing!"
 	fi
 fi
+
+
+# 复制自定义文件到固件
+if [ -d "$GITHUB_WORKSPACE/files" ]; then
+    echo "Copying custom files..."
+    cp -rf $GITHUB_WORKSPACE/files/* ./
+    echo "Custom files copied successfully!"
+fi
