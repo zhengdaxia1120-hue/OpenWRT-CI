@@ -1,9 +1,16 @@
 #!/bin/sh
 
-# 互换 WAN 与 LAN
-uci set network.lan.device='eth1'
-uci set network.wan.device='eth0'
-uci set network.wan6.device='eth0'
+# 小米 AX3600：把 lan1 变成 WAN，原 WAN 口加入 LAN 桥
+
+# 1. 清空并重新设置 br-lan 的端口（去掉 lan1，加入原 wan 口）
+uci -q delete network.@device[0].ports
+uci add_list network.@device[0].ports='lan2'
+uci add_list network.@device[0].ports='lan3'
+uci add_list network.@device[0].ports='wan'
+
+# 2. 把 lan1 设为 WAN
+uci set network.wan.device='lan1'
+uci set network.wan6.device='lan1'
 
 uci commit network
 exit 0
