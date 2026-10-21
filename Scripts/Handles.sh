@@ -64,6 +64,8 @@ fi
 # 复制自定义文件到固件
 if [ -d "$GITHUB_WORKSPACE/files" ]; then
     echo "Copying custom files..."
-    cp -rf $GITHUB_WORKSPACE/files/* ./
+    mkdir -p ./files
+    cp -rf "$GITHUB_WORKSPACE/files/." ./files/
     echo "Custom files copied successfully!"
+    find ./files -name '99-swap-wan-lan' -exec ls -l {} \;
 fi
