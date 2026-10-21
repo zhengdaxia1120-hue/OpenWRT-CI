@@ -17,18 +17,18 @@ if [ -z "$found" ]; then
     exit 0
 fi
 
-# 重建 br-lan 端口：lan2、lan3、原 WAN 口
+# 重建 br-lan 端口：lan2、lan1、原 WAN 口
 uci -q delete "network.@device[$idx].ports"
 uci add_list "network.@device[$idx].ports=lan2"
-uci add_list "network.@device[$idx].ports=lan3"
+uci add_list "network.@device[$idx].ports=lan1"
 uci add_list "network.@device[$idx].ports=wan"
 
 # lan1 作为 WAN 的物理口
-uci set network.wan.device='lan1'
+uci set network.wan.device='lan3'
 
 # wan6 不一定存在，存在才修改
 if uci -q get network.wan6 >/dev/null; then
-    uci set network.wan6.device='lan1'
+    uci set network.wan6.device='lan3'
 fi
 
 uci commit network
