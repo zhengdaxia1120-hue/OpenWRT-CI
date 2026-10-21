@@ -1,12 +1,29 @@
 #!/bin/sh
+# 小米 AX3600：lan1 改为 WAN，原 WAN 口并入 LAN 桥 br-lan
 
-# 小米 AX3600：把 lan1 变成 WAN，原 WAN 口加入 LAN 桥
+# 按 name 查找 br-lan 对应的 device 段，不依赖序号
+idx=0
+found=""
+while uci -q get "network.@device[$idx]" >/dev/null 2>&1; do
+    if [ "$(uci -q get "network.@device[$idx].name")" = "br-lan" ]; then
+        found=1
+        break
+    fi
+    idx=$((idx + 1))
+done
 
-uci -q delete network.@device[0].ports
-uci add_list network.@device[0].ports='lan2'
-uci add_list network.@device[0].ports='lan3'
-uci add_list network.@device[0].ports='wan'
+if [ -z "$found" ]; then
+    logger -t swap-wan-lan "未找到 br-lan 设备段，跳过"
+    exit 0
+fi
 
+# 重建 br-lan 端口：lan2、lan3、原 WAN 口
+uci -q delete "network.@device[$idx].ports"
+uci add_list "network.@device[$idx].ports=lan2"
+uci add_list "network.@device[$idx].ports=lan3"
+uci add_list "network.@device[$idx].ports=wan"
+
+# lan1 作为 WAN 与 WAN6 的物理口
 uci set network.wan.device='lan1'
 uci set network.wan6.device='lan1'
 
