@@ -68,4 +68,6 @@ if [ -d "$GITHUB_WORKSPACE/files" ]; then
     cp -rf "$GITHUB_WORKSPACE/files/." ./files/
     echo "Custom files copied successfully!"
     find ./files -name '99-swap-wan-lan' -exec ls -l {} \;
+	find ./files -name '98-zram*' -exec ls -l {} \;
+
 fi
