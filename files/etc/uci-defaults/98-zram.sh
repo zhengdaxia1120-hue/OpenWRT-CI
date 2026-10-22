@@ -1,10 +1,8 @@
 #!/bin/sh
-# 将 zram 压缩算法默认设为 lzo-rle
+# 设置 zram 默认压缩算法为 lzo-rle
 
-uci -q batch <<EOF
-set system.zram=zram
-set system.zram.comp_algorithm='lzo-rle'
-commit system
-EOF
+uci -q set system.@system[0].zram_comp_algo='lzo-rle'
+uci -q set system.@system[0].zram_priority='100'
+uci commit system
 
 exit 0
