@@ -23,7 +23,7 @@ uci add_list "network.@device[$idx].ports=lan2"
 uci add_list "network.@device[$idx].ports=lan1"
 uci add_list "network.@device[$idx].ports=wan"
 
-# lan1 作为 WAN 的物理口
+# lan3 作为 WAN 的物理口
 uci set network.wan.device='lan3'
 
 # wan6 不一定存在，存在才修改
