@@ -1,5 +1,5 @@
 #!/bin/sh
-# 小米 AX3600：lan1 改为 WAN，原 WAN 口并入 LAN 桥 br-lan
+# 小米 AX3600：lan3 改为 WAN，原 WAN 口并入 LAN 桥 br-lan
 
 # 按 name 查找 br-lan 对应的 device 段，不依赖序号
 idx=0
