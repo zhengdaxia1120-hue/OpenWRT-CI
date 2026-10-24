@@ -53,6 +53,7 @@ UPDATE_PACKAGE "aurora-config" "eamonxg/luci-app-aurora-config" "master"
 # 科学上网
 # =========================
 UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "master" "pkg"
+UPDATE_PACKAGE "passwall" "Openwrt-Passwall/openwrt-passwall" "main" "pkg"
 
 #更新软件包版本
 UPDATE_VERSION() {
