@@ -205,18 +205,35 @@ jobs:
         run: |
           cd ./wrt/
           MANIFEST=$(find bin/targets -name '*.manifest' | head -n 1)
-          echo "清单文件: ${MANIFEST:-未找到}"
-          [ -n "$MANIFEST" ] || { echo "未找到清单文件"; exit 1; }
-          echo "=== 固件中的 Wi-Fi 相关包 ==="
-          grep -E 'ath11k|ath10k|wpad|nss-wifi' "$MANIFEST" || true
-          echo "=== 必需包检查 ==="
-          for pkg in kmod-ath11k-ahb ath11k-firmware-ipq8074 kmod-ath10k-smallbuffers ath10k-firmware-qca9887; do
-            grep -q -E "^${pkg}(-ddwrt)? " "$MANIFEST" || { echo "固件中缺少 ${pkg}"; exit 1; }
-          done
-          echo "=== 禁止的包检查 ==="
-          if grep -q '^kmod-nss-wifi-drv ' "$MANIFEST"; then
-            echo "固件中包含 kmod-nss-wifi-drv，会与 ath11k 冲突"; exit 1
+          [ -n "$MANIFEST" ] || { echo "❌ 未找到清单文件，无法检查无线"; exit 1; }
+          echo "清单文件: $MANIFEST"
+          MISSING=0
+          # 检查某个包是否编入固件，参数：正则 显示名 是否必需
+          check() {
+            local hit
+            hit=$(grep -E "^$1 " "$MANIFEST" | head -n 1)
+            if [ -n "$hit" ]; then
+              echo "✅ $2：已编入（${hit}）"
+            elif [ "$3" = "required" ]; then
+              echo "❌ $2：未编入（必需）"; MISSING=1
+            else
+              echo "➖ $2：未编入"
+            fi
+          }
+          echo "================ 无线编译摘要 ================"
+          check 'kmod-ath11k-ahb' '2.4G 驱动 kmod-ath11k-ahb' required
+          check 'ath11k-firmware-ipq8074(-ddwrt)?' '2.4G 固件 ath11k-firmware-ipq8074' required
+          check 'kmod-ath10k-smallbuffers' '5G 驱动 kmod-ath10k-smallbuffers' required
+          check 'ath10k-firmware-qca9887' '5G 固件 ath10k-firmware-qca9887' required
+          check 'wpad-openssl' '无线服务 wpad-openssl' optional
+          hit=$(grep -E '^kmod-nss-wifi-drv ' "$MANIFEST" | head -n 1)
+          if [ -n "$hit" ]; then
+            echo "⚠️ NSS Wi-Fi kmod-nss-wifi-drv：已编入，可能与 ath11k 冲突（${hit}）"
+          else
+            echo "✅ NSS Wi-Fi kmod-nss-wifi-drv：未编入"
           fi
+          echo "=============================================="
+          [ "$MISSING" = "0" ] || { echo "❌ 必需的无线组件缺失，构建失败"; exit 1; }
 
       - name: Save Build Cache
         if: ${{ !inputs.WRT_TEST && success() && steps.cache-restore.outputs.cache-hit != 'true' }}
