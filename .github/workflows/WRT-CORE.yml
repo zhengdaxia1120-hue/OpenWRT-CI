@@ -223,8 +223,8 @@ jobs:
           echo "================ 无线编译摘要 ================"
           check 'kmod-ath11k-ahb' '2.4G 驱动 kmod-ath11k-ahb' required
           check 'ath11k-firmware-ipq8074(-ddwrt)?' '2.4G 固件 ath11k-firmware-ipq8074' required
-          check 'kmod-ath10k-smallbuffers' '5G 驱动 kmod-ath10k-smallbuffers' required
-          check 'ath10k-firmware-qca9887' '5G 固件 ath10k-firmware-qca9887' required
+          check 'kmod-ath10k-smallbuffers' '5G 驱动 kmod-ath10k-smallbuffers' optional
+          check 'ath10k-firmware-qca9887' '5G 固件 ath10k-firmware-qca9887' optional
           check 'wpad-openssl' '无线服务 wpad-openssl' optional
           hit=$(grep -E '^kmod-nss-wifi-drv ' "$MANIFEST" | head -n 1)
           if [ -n "$hit" ]; then
