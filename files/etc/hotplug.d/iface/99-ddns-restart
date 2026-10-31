@@ -5,10 +5,10 @@ case "$INTERFACE" in
     wan|wan6) ;;
     *) exit 0 ;;
 esac
-
 (
     for i in $(seq 1 60); do
         ip -6 addr show dev pppoe-wan scope global | grep -q inet6 && break
+        ip -4 addr show dev pppoe-wan scope global | grep -q inet && break
         sleep 5
     done
     sleep 10
