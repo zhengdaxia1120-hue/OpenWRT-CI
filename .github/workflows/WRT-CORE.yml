@@ -209,9 +209,8 @@ jobs:
           echo "=== NSS Wi-Fi 相关配置 ==="
           grep -i 'nss' .config | grep -i 'wifi' || echo "未启用 NSS Wi-Fi"
           echo "=== 必需包检查 ==="
-          for pkg in CONFIG_PACKAGE_kmod-ath11k-ahb CONFIG_PACKAGE_ath11k-firmware-ipq8074; do
-            grep -q "^${pkg}=[ym]" .config || { echo "缺少 ${pkg}"; exit 1; }
-          done
+          grep -q "^CONFIG_PACKAGE_kmod-ath11k-ahb=[ym]" .config || { echo "缺少 kmod-ath11k-ahb"; exit 1; }
+          grep -q -E "^CONFIG_PACKAGE_ath11k-firmware-ipq8074(-ddwrt)?=[ym]" .config || { echo "缺少 ath11k 固件"; exit 1; }
 
       - name: Save Build Cache
         if: ${{ !inputs.WRT_TEST && success() && steps.cache-restore.outputs.cache-hit != 'true' }}
