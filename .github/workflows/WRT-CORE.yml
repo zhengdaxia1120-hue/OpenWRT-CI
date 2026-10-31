@@ -204,13 +204,19 @@ jobs:
         if: ${{ !inputs.WRT_TEST }}
         run: |
           cd ./wrt/
-          echo "=== Wi-Fi 相关配置 ==="
-          grep -E 'CONFIG_PACKAGE_(kmod-ath11k|ath11k-firmware|kmod-ath10k|ath10k-firmware|wpad)' .config || true
-          echo "=== NSS Wi-Fi 相关配置 ==="
-          grep -i 'nss' .config | grep -i 'wifi' || echo "未启用 NSS Wi-Fi"
+          MANIFEST=$(find bin/targets -name '*.manifest' | head -n 1)
+          echo "清单文件: ${MANIFEST:-未找到}"
+          [ -n "$MANIFEST" ] || { echo "未找到清单文件"; exit 1; }
+          echo "=== 固件中的 Wi-Fi 相关包 ==="
+          grep -E 'ath11k|ath10k|wpad|nss-wifi' "$MANIFEST" || true
           echo "=== 必需包检查 ==="
-          grep -q "^CONFIG_PACKAGE_kmod-ath11k-ahb=[ym]" .config || { echo "缺少 kmod-ath11k-ahb"; exit 1; }
-          grep -q -E "^CONFIG_PACKAGE_ath11k-firmware-ipq8074(-ddwrt)?=[ym]" .config || { echo "缺少 ath11k 固件"; exit 1; }
+          for pkg in kmod-ath11k-ahb ath11k-firmware-ipq8074 kmod-ath10k-smallbuffers ath10k-firmware-qca9887; do
+            grep -q -E "^${pkg}(-ddwrt)? " "$MANIFEST" || { echo "固件中缺少 ${pkg}"; exit 1; }
+          done
+          echo "=== 禁止的包检查 ==="
+          if grep -q '^kmod-nss-wifi-drv ' "$MANIFEST"; then
+            echo "固件中包含 kmod-nss-wifi-drv，会与 ath11k 冲突"; exit 1
+          fi
 
       - name: Save Build Cache
         if: ${{ !inputs.WRT_TEST && success() && steps.cache-restore.outputs.cache-hit != 'true' }}
