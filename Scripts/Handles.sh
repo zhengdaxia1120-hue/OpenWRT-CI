@@ -67,9 +67,9 @@ if [ -d "$GITHUB_WORKSPACE/files" ]; then
     mkdir -p ./files
     cp -rf "$GITHUB_WORKSPACE/files/." ./files/
     echo "Custom files copied successfully!"
-    # find ./files -name '99-swap-wan-lan' -exec ls -l {} \;
-    # find ./files -name '98-zram*' -exec ls -l {} \;
-    # find ./files -name '99-ddns-delay.sh' -exec ls -l {} \;
-    # find ./files -name '99-ddns-restart' -exec ls -l {} \;
+    find ./files -name '99-swap-wan-lan' -exec ls -l {} \;
+    find ./files -name '98-zram*' -exec ls -l {} \;
+    find ./files -name '99-ddns-delay.sh' -exec ls -l {} \;
+    find ./files -name '99-ddns-restart' -exec ls -l {} \;
 
 fi
