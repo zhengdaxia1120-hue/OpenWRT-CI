@@ -18,29 +18,53 @@ UPDATE_PACKAGE() {
 	# 删除本地可能存在的不同名称的软件包
 	for NAME in "${PKG_LIST[@]}"; do
 		# 精确匹配目录名，避免 "*argon*" 之类模糊匹配误删 node-argon2 等无关包：
-		# 命中形如 /luci-theme-argon（以 -NAME 结尾）或 /NAME-xxx（以 NAME- 开头）的目录
+		# 命中 basename 等于 NAME、以 NAME- 开头、或以 -NAME 结尾的目录
+		# 用 case 做字面比较而非正则：包名里出现 + . 等正则元字符也不会失效，且大小写敏感
 		echo "Search directory: $NAME"
-		local FOUND_DIRS=$(find ./feeds/luci/ ./feeds/packages/ -maxdepth 3 -type d 2>/dev/null \
-			| grep -Ei "/([a-z0-9._]+-)*${NAME}$|/${NAME}-")
-
-		# 删除找到的目录
-		if [ -n "$FOUND_DIRS" ]; then
-			while read -r DIR; do
+		local FOUND=0
+		while read -r DIR; do
+			[ -n "$DIR" ] || continue
+			local BASE=$(basename "$DIR")
+			local HIT=0
+			[ "$BASE" = "$NAME" ] && HIT=1
+			case "$BASE" in
+				"$NAME"-*) HIT=1 ;;
+				*-"$NAME") HIT=1 ;;
+			esac
+			if [ "$HIT" = 1 ]; then
 				rm -rf "$DIR"
 				echo "Delete directory: $DIR"
-			done <<< "$FOUND_DIRS"
-		else
-			echo "Not fonud directory: $NAME"
-		fi
+				FOUND=$((FOUND + 1))
+			fi
+		done < <(find ./feeds/luci/ ./feeds/packages/ -maxdepth 3 -type d 2>/dev/null)
+		[ "$FOUND" = 0 ] && echo "Not found directory: $NAME"
 	done
 
 	# 克隆 GitHub 仓库
-	git clone --depth=1 --single-branch --branch $PKG_BRANCH "https://github.com/$PKG_REPO.git" $REPO_PATH
+	if ! git clone --depth=1 --single-branch --branch "$PKG_BRANCH" "https://github.com/$PKG_REPO.git" "$REPO_PATH"; then
+		echo ">>> 错误: 克隆 $PKG_REPO ($PKG_BRANCH) 失败"
+		exit 1
+	fi
 
-	# 处理克隆的仓库
+	# 处理克隆的仓库：只拷贝目录名精确等于包名或其 luci 前端的目录
+	# 不用 -iname "*$PKG_NAME*"：仓库里形如 .github/skills/openclash-user-guide 的文档目录会被一并拷进 package/
 	if [[ "$PKG_SPECIAL" == "pkg" ]]; then
-		find $REPO_PATH/*/ -maxdepth 3 -type d -iname "*$PKG_NAME*" -prune -exec cp -rf {} ./package \;
-		rm -rf $REPO_PATH
+		local COPIED=0
+		while read -r DIR; do
+			[ -n "$DIR" ] || continue
+			case "$(basename "$DIR")" in
+				"$PKG_NAME"|"luci-app-$PKG_NAME")
+					cp -rf "$DIR" ./package
+					echo "Copy package directory: $DIR"
+					COPIED=$((COPIED + 1))
+					;;
+			esac
+		done < <(find "$REPO_PATH" -maxdepth 3 -type d 2>/dev/null)
+		rm -rf "$REPO_PATH"
+		if [ "$COPIED" = 0 ]; then
+			echo ">>> 错误: $REPO_NAME 中未找到 $PKG_NAME / luci-app-$PKG_NAME 目录"
+			exit 1
+		fi
 	fi
 }
 
@@ -65,31 +89,50 @@ UPDATE_PACKAGE "argon" "jerrykuku/luci-theme-argon" "master" "" "argon-config"
 UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "master" "pkg"
 
 # =========================
-# 解析 owrt 引用：默认跟随 owrt 分支 HEAD，可用 Scripts/pins.env 中的 OWRT_SHA 锁定
+# owrt 引用解析：同一次编译只认一个提交
+# - 默认跟随 owrt 分支 HEAD，解析成提交哈希后固定下来，后续所有下载都用这个哈希
+# - 可用 Scripts/pins.env 的 OWRT_SHA 锁定，便于复现历史固件
+# - 解析失败直接终止：否则三次下载各走一次分支名，日志记录的版本和实际取用的代码会对不上
 # =========================
-OWRT_REF="owrt"
 if [ -f "$GITHUB_WORKSPACE/Scripts/pins.env" ]; then
 	. "$GITHUB_WORKSPACE/Scripts/pins.env"
 fi
+
 if [ -n "${OWRT_SHA:-}" ]; then
 	OWRT_REF="$OWRT_SHA"
-	echo ">>> 使用锁定的 owrt 提交: $OWRT_REF（来自 Scripts/pins.env）"
+	echo ">>> owrt 引用: $OWRT_REF（pins.env 锁定，可复现）"
 else
-	OWRT_HEAD=$(git ls-remote https://github.com/VIKINGYFY/immortalwrt.git refs/heads/owrt 2>/dev/null | cut -f1)
-	if [ -n "$OWRT_HEAD" ]; then
-		echo ">>> owrt 当前提交（追溯用）: $OWRT_HEAD"
-	else
-		echo ">>> 警告: 无法解析 owrt 分支 HEAD，将直接使用分支名"
+	OWRT_REF=$(git ls-remote https://github.com/VIKINGYFY/immortalwrt.git refs/heads/owrt 2>/dev/null | cut -f1)
+	if [ -z "$OWRT_REF" ]; then
+		echo ">>> 错误: 无法解析 owrt 分支 HEAD（网络不通或仓库不可达），终止编译"
+		exit 1
 	fi
+	echo ">>> owrt 引用: $OWRT_REF（跟随 owrt HEAD，本次编译内固定，不会中途漂移）"
 fi
 
+SUMMARY() { [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+SUMMARY "- owrt 引用: \`$OWRT_REF\`"
+
 # =========================
-# 从 owrt 分支移植 luci-app-router-tool（含中继AP模式）
-# 仅当源码树中没有该包时才下载（owrt 分支自带，会自动跳过）
-# 失败视为硬错误：配置里已声明该包，缺失意味着固件功能不完整，不应静默通过
+# luci-app-router-tool（含中继AP模式）
+# 该包为 owrt 分支独有，main 分支源码树里没有，必须从 owrt 移植
+# 跟随策略（按源码分支判断，而不是按目录是否存在判断）：
+#   - 源码分支就是 owrt：包由源码树直接提供，无需移植
+#   - 其它分支（main 等）：无条件用 owrt@$OWRT_REF 覆盖
+#     这样 owrt 更新 router-tool 后，main 一定用上新版；若将来 main 自带了该包，
+#     也一律以 owrt 版本为准，日志会写明"覆盖"
+# 失败视为硬错误：Config 里已声明该包，缺失意味着固件功能不完整，不应静默通过
 # =========================
-if [ ! -d "./package/emortal/luci-app-router-tool" ]; then
-	echo ">>> 源码树缺少 luci-app-router-tool，从 owrt 分支移植..."
+RT_DIR="./package/emortal/luci-app-router-tool"
+if [ "${WRT_BRANCH:-}" = "owrt" ]; then
+	echo ">>> 源码分支为 owrt，luci-app-router-tool 由源码树直接提供，跳过移植"
+	SUMMARY "- luci-app-router-tool: 源码自带（owrt 分支）"
+else
+	if [ -d "$RT_DIR" ]; then
+		echo ">>> 源码树自带 luci-app-router-tool，按跟随策略改用 owrt 版本覆盖"
+	else
+		echo ">>> 源码树缺少 luci-app-router-tool，从 owrt 移植"
+	fi
 	OWRT_TARBALL=$(mktemp)
 	if ! curl -fsSL --retry 3 --connect-timeout 30 \
 		"https://github.com/VIKINGYFY/immortalwrt/archive/${OWRT_REF}.tar.gz" -o "$OWRT_TARBALL"; then
@@ -98,6 +141,8 @@ if [ ! -d "./package/emortal/luci-app-router-tool" ]; then
 		exit 1
 	fi
 	OWRT_TOP=$(tar tzf "$OWRT_TARBALL" 2>/dev/null | head -1 | cut -d/ -f1)
+	rm -rf "$RT_DIR"
+	mkdir -p ./package/emortal
 	if [ -z "$OWRT_TOP" ] || ! tar xzf "$OWRT_TARBALL" --strip-components=2 \
 		-C ./package "$OWRT_TOP/package/emortal/luci-app-router-tool"; then
 		rm -f "$OWRT_TARBALL"
@@ -105,14 +150,13 @@ if [ ! -d "./package/emortal/luci-app-router-tool" ]; then
 		exit 1
 	fi
 	rm -f "$OWRT_TARBALL"
-	if [ -f "./package/emortal/luci-app-router-tool/Makefile" ]; then
-		echo ">>> luci-app-router-tool 移植成功（Makefile 已就位）"
+	if [ -f "$RT_DIR/Makefile" ]; then
+		echo ">>> luci-app-router-tool 移植成功（来源 owrt@${OWRT_REF:0:7}）"
+		SUMMARY "- luci-app-router-tool: 移植自 owrt@${OWRT_REF:0:7}"
 	else
 		echo ">>> 错误: 移植后缺少 Makefile，包结构异常"
 		exit 1
 	fi
-else
-	echo ">>> 源码树已自带 luci-app-router-tool，跳过移植"
 fi
 
 # =========================
@@ -121,50 +165,64 @@ fi
 # 仅替换版本定义文件，补丁集保持本分支原样
 # =========================
 KVER_FILE="./target/linux/generic/kernel-6.18"
-KVER_LOCAL=$(grep -oP '^LINUX_VERSION-6\.18 = \K\S+' "$KVER_FILE" 2>/dev/null)
-KVER_OWRT=$(curl -fsSL --retry 3 --connect-timeout 30 \
-	"https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/${OWRT_REF}/target/linux/generic/kernel-6.18" 2>/dev/null \
-	| grep -oP '^LINUX_VERSION-6\.18 = \K\S+')
-
 if [ ! -f "$KVER_FILE" ]; then
 	echo ">>> 警告: 本树缺少 $KVER_FILE，跳过内核版本对齐"
-elif [ -z "$KVER_OWRT" ]; then
-	echo ">>> 警告: 无法读取 owrt 内核版本定义（引用 $OWRT_REF，本树 $KVER_LOCAL），跳过对齐"
-elif [ "$KVER_LOCAL" = "$KVER_OWRT" ]; then
-	echo ">>> 内核版本已与 owrt 一致（$KVER_LOCAL），无需对齐"
+	SUMMARY "- 内核版本: 未对齐（本树无 kernel-6.18 定义）"
 else
-	echo ">>> 内核补丁版本对齐: 本树 $KVER_LOCAL → owrt $KVER_OWRT"
-	if curl -fsSL --retry 3 --connect-timeout 30 \
-		"https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/${OWRT_REF}/target/linux/generic/kernel-6.18" \
-		-o "$KVER_FILE"; then
-		echo ">>> 内核版本定义已更新: $(grep 'LINUX_VERSION-6.18' "$KVER_FILE")"
+	KVER_LOCAL=$(grep -oP '^LINUX_VERSION-6\.18 = \K\S+' "$KVER_FILE" 2>/dev/null)
+	KVER_OWRT=$(curl -fsSL --retry 3 --connect-timeout 30 \
+		"https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/${OWRT_REF}/target/linux/generic/kernel-6.18" 2>/dev/null \
+		| grep -oP '^LINUX_VERSION-6\.18 = \K\S+')
+
+	if [ -z "$KVER_OWRT" ]; then
+		echo ">>> 警告: 无法读取 owrt 内核版本定义（引用 $OWRT_REF，本树 $KVER_LOCAL），跳过对齐"
+		SUMMARY "- 内核版本: 对齐未执行（读取 owrt 定义失败，本树 $KVER_LOCAL）"
+	elif [ "$KVER_LOCAL" = "$KVER_OWRT" ]; then
+		echo ">>> 内核版本已与 owrt 一致（$KVER_LOCAL），无需对齐"
+		SUMMARY "- 内核版本: $KVER_LOCAL（已与 owrt 一致）"
 	else
-		echo ">>> 错误: 内核版本定义更新失败，保持本树原版本 $KVER_LOCAL"
-		exit 1
+		echo ">>> 内核补丁版本对齐: 本树 $KVER_LOCAL → owrt $KVER_OWRT"
+		if curl -fsSL --retry 3 --connect-timeout 30 \
+			"https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/${OWRT_REF}/target/linux/generic/kernel-6.18" \
+			-o "$KVER_FILE"; then
+			echo ">>> 内核版本定义已更新: $(grep 'LINUX_VERSION-6.18' "$KVER_FILE")"
+			SUMMARY "- 内核版本: $KVER_LOCAL → $KVER_OWRT（对齐 owrt）"
+		else
+			echo ">>> 错误: 内核版本定义更新失败，保持本树原版本 $KVER_LOCAL"
+			exit 1
+		fi
 	fi
 fi
 
 # =========================
 # 退役补丁：无条件执行（与版本号是否对齐无关，防止版本已对齐时补丁被重新启用）
-# - 438/782/787/950: 修复内容已被 stable 6.18.60 上游吸收，属重复补丁
-# - 304:     LoongArch 架构 vdso 补丁，与 qualcommax 目标无关且与新内核冲突
-# - 0092:    IPQ5018 pinctrl pwm3 补丁，与 IPQ807x 目标无关且与新内核冲突
-# 清单变更须同步 .github/workflows/PATCH-REHEARSE.yml 的 SKIP 表
+# 清单唯一来源：Scripts/retired-patches.txt
+#   - 编译脚本按它会删除对应补丁
+#   - .github/workflows/PATCH-REHEARSE.yml 按同一份文件跳过这些补丁
+# 两边不再各自维护清单，改一次即可，演练结果与真实编译不会再分叉
 # =========================
-for RETIRED in \
-	generic/backport-6.18/438-v7.3-mtd-spinand-Do-not-update-the-QE-bit-on-devices-without-one.patch \
-	generic/backport-6.18/782-v7.3-USB-serial-option-add-Quectel-EG060W.patch \
-	generic/backport-6.18/787-v7.3-net-usb-qmi_wwan-add-Quectel-EG120K-EA.patch \
-	generic/backport-6.18/950-v7.3-cgroup-fix-spurious-SIGKILL-of-CLONE_INTO_CGROUP-children.patch \
-	generic/pending-6.18/304-LoongArch-vdso-keep-the-prefix-map-flags.patch \
-	qualcommax/patches-6.18/0092-v7.3-pinctrl-qcom-ipq5018-add-missing-pwm3-function-on-gpio13.patch \
-; do
+RETIRED_FILE="$GITHUB_WORKSPACE/Scripts/retired-patches.txt"
+if [ ! -f "$RETIRED_FILE" ]; then
+	echo ">>> 错误: 缺少退役补丁清单 $RETIRED_FILE，终止编译"
+	exit 1
+fi
+
+RETIRED_DONE=0
+RETIRED_MISSING=0
+while IFS= read -r RETIRED || [ -n "$RETIRED" ]; do
+	RETIRED=$(echo "$RETIRED" | tr -d '\r' | sed 's/[[:space:]]*$//')
+	[ -z "$RETIRED" ] && continue
+	case "$RETIRED" in \#*) continue ;; esac
 	if [ -f "./target/linux/$RETIRED" ]; then
 		rm -f "./target/linux/$RETIRED" && echo ">>> 已移除退役补丁: $RETIRED"
+		RETIRED_DONE=$((RETIRED_DONE + 1))
 	else
 		echo ">>> 警告: 退役补丁未找到（路径或文件名有误，请检查清单）: $RETIRED"
+		RETIRED_MISSING=$((RETIRED_MISSING + 1))
 	fi
-done
+done < "$RETIRED_FILE"
+echo ">>> 退役补丁处理完成: 移除 $RETIRED_DONE 个，清单中缺失 $RETIRED_MISSING 个"
+SUMMARY "- 退役补丁: 移除 $RETIRED_DONE 个，缺失 $RETIRED_MISSING 个"
 
 #更新软件包版本
 UPDATE_VERSION() {
@@ -181,7 +239,7 @@ UPDATE_VERSION() {
 
 	for PKG_FILE in $PKG_FILES; do
 		local PKG_REPO=$(grep -Po "PKG_SOURCE_URL:=https://.*github.com/\K[^/]+/[^/]+(?=.*)" $PKG_FILE)
-		local PKG_TAG=$(curl -sL "https://api.github.com/repos/$PKG_REPO/releases" | jq -r "map(select(.prerelease == $PKG_MARK)) | first | .tag_name")
+		local PKG_TAG=$(curl -fsSL "https://api.github.com/repos/$PKG_REPO/releases" | jq -r "map(select(.prerelease == $PKG_MARK)) | first | .tag_name" 2>/dev/null)
 
 		local OLD_VER=$(grep -Po "PKG_VERSION:=\K.*" "$PKG_FILE")
 		local OLD_URL=$(grep -Po "PKG_SOURCE_URL:=\K.*" "$PKG_FILE")
@@ -192,10 +250,15 @@ UPDATE_VERSION() {
 
 		local NEW_VER=$(echo $PKG_TAG | sed -E 's/[^0-9]+/\./g; s/^\.|\.$//g')
 		local NEW_URL=$(echo $PKG_URL | sed "s/\$(PKG_VERSION)/$NEW_VER/g; s/\$(PKG_NAME)/$PKG_NAME/g")
-		local NEW_HASH=$(curl -sL "$NEW_URL" | sha256sum | cut -d ' ' -f 1)
+		local NEW_HASH=$(curl -fsSL "$NEW_URL" | sha256sum | cut -d ' ' -f 1)
 
 		echo "old version: $OLD_VER $OLD_HASH"
 		echo "new version: $NEW_VER $NEW_HASH"
+
+		if [ -z "$NEW_VER" ] || [ -z "$NEW_HASH" ]; then
+			echo "$PKG_FILE 版本查询失败（网络异常或仓库无可用 release），保持原版本"
+			continue
+		fi
 
 		if [[ "$NEW_VER" =~ ^[0-9].* ]] && dpkg --compare-versions "$OLD_VER" lt "$NEW_VER"; then
 			sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=$NEW_VER/g" "$PKG_FILE"

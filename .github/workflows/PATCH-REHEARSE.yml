@@ -7,6 +7,9 @@ jobs:
   rehearse:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout CI project
+        uses: actions/checkout@main
+
       - name: Clone immortalwrt main
         run: |
           git clone --depth=1 --branch main https://github.com/VIKINGYFY/immortalwrt.git ./wrt
@@ -14,9 +17,15 @@ jobs:
       - name: Download kernel source
         run: |
           # 版本号取自 owrt 分支（与编译时内核对齐目标一致），补丁集来自 main
-          KVER="6.18$(curl -sL "https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/owrt/target/linux/generic/kernel-6.18" | grep -oP '^LINUX_VERSION-6\.18 = \K\S+')"
+          KVER_RAW=$(curl -fsSL --retry 3 "https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/owrt/target/linux/generic/kernel-6.18" \
+            | grep -oP '^LINUX_VERSION-6\.18 = \K\S+')
+          if [ -z "$KVER_RAW" ]; then
+            echo "无法读取 owrt 内核版本定义，演练终止"
+            exit 1
+          fi
+          KVER="6.18$KVER_RAW"
           echo "内核版本: $KVER"
-          curl -sL -o /tmp/linux.tar.xz "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$KVER.tar.xz"
+          curl -fsSL --retry 3 -o /tmp/linux.tar.xz "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$KVER.tar.xz"
           mkdir -p /tmp/linux
           tar xf /tmp/linux.tar.xz -C /tmp/linux --strip-components=1
           # 复刻编译时行为：先覆盖 files/ 目录（部分补丁的上下文可能来自覆盖文件）
@@ -26,18 +35,30 @@ jobs:
       - name: Rehearse all patches
         run: |
           KT=/tmp/linux
+          RETIRED_FILE="$GITHUB_WORKSPACE/Scripts/retired-patches.txt"
+          if [ ! -f "$RETIRED_FILE" ]; then
+            echo "缺少退役补丁清单 $RETIRED_FILE，演练终止"
+            exit 1
+          fi
+          # 与编译脚本共用同一份清单：按 basename 精确匹配跳过
+          SKIP_LIST=""
+          while IFS= read -r L || [ -n "$L" ]; do
+            L=$(echo "$L" | tr -d '\r' | sed 's/[[:space:]]*$//')
+            [ -z "$L" ] && continue
+            case "$L" in \#*) continue ;; esac
+            SKIP_LIST="$SKIP_LIST $(basename "$L")"
+          done < "$RETIRED_FILE"
+          echo "跳过清单: $SKIP_LIST"
           cd ./wrt
           patch --version | head -1
           git -C $KT init -q && git -C $KT config user.name rehearse && git -C $KT config user.email rehearse@local && git -C $KT add -A && git -C $KT commit -qm vanilla
-          # 已退役补丁（与 Scripts/Packages.sh 退役清单保持一致）：编译时不会存在，演练需跳过
-          SKIP="438-v7.3-mtd-spinand 782-v7.3-USB-serial 787-v7.3-net-usb 950-v7.3-cgroup 304-LoongArch-vdso 0092-v7.3-pinctrl"
           for DIR in generic/backport-6.18 generic/pending-6.18 generic/hack-6.18 qualcommax/patches-6.18; do
             for P in target/linux/$DIR/*.patch; do
               [ -e "$P" ] || continue
               BASE=$(basename "$P")
-              SKIP_THIS=0
-              for S in $SKIP; do case "$BASE" in "$S"*) SKIP_THIS=1; break;; esac; done
-              [ "$SKIP_THIS" = 1 ] && continue
+              case " $SKIP_LIST " in
+                *" $BASE "*) echo "SKIP(已退役): $DIR/$BASE"; continue ;;
+              esac
               # --forward 关键：禁止 GNU patch 静默反向应用（与编译时 plaintext 行为一致）
               if patch -d $KT -p1 --batch --forward --silent < "$P" >/dev/null 2>&1; then
                 continue
