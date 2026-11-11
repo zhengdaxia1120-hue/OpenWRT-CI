@@ -62,6 +62,27 @@ UPDATE_PACKAGE "argon" "jerrykuku/luci-theme-argon" "master"
 # =========================
 UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "master" "pkg"
 
+# =========================
+# 从 owrt 分支移植 luci-app-router-tool（含中继AP模式）
+# 仅当源码树中没有该包时才下载（owrt 分支自带，会自动跳过）
+# =========================
+if [ ! -d "./package/emortal/luci-app-router-tool" ]; then
+	echo ">>> 源码树缺少 luci-app-router-tool，从 owrt 分支移植..."
+	OWRT_TARBALL=$(mktemp)
+	if curl -sL --retry 3 --connect-timeout 30 \
+		"https://github.com/VIKINGYFY/immortalwrt/archive/refs/heads/owrt.tar.gz" -o "$OWRT_TARBALL"; then
+		if tar xzf "$OWRT_TARBALL" --strip-components=2 \
+			-C ./package "immortalwrt-owrt/package/emortal/luci-app-router-tool"; then
+			echo ">>> luci-app-router-tool 移植成功"
+		else
+			echo ">>> luci-app-router-tool 解包失败，跳过（中继AP模式将不可用）"
+		fi
+	else
+		echo ">>> owrt 源码包下载失败，跳过 luci-app-router-tool 移植"
+	fi
+	rm -f "$OWRT_TARBALL"
+fi
+
 #更新软件包版本
 UPDATE_VERSION() {
 	local PKG_NAME=$1
