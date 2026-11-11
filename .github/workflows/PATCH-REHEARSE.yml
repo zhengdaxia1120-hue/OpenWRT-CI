@@ -19,6 +19,9 @@ jobs:
           curl -sL -o /tmp/linux.tar.xz "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$KVER.tar.xz"
           mkdir -p /tmp/linux
           tar xf /tmp/linux.tar.xz -C /tmp/linux --strip-components=1
+          # 复刻编译时行为：先覆盖 files/ 目录（部分补丁的上下文可能来自覆盖文件）
+          mkdir -p ./wrt/target/linux/generic/files ./wrt/target/linux/qualcommax/files
+          cp -a ./wrt/target/linux/generic/files/. ./wrt/target/linux/qualcommax/files/. /tmp/linux/ 2>/dev/null || true
 
       - name: Rehearse all patches
         run: |
@@ -26,19 +29,26 @@ jobs:
           cd ./wrt
           patch --version | head -1
           git -C $KT init -q && git -C $KT config user.name rehearse && git -C $KT config user.email rehearse@local && git -C $KT add -A && git -C $KT commit -qm vanilla
+          # 已退役补丁（与 Scripts/Packages.sh 退役清单保持一致）：编译时不会存在，演练需跳过
+          SKIP="438-v7.3-mtd-spinand 782-v7.3-USB-serial 787-v7.3-net-usb 304-LoongArch-vdso 0092-v7.3-pinctrl"
           for DIR in generic/backport-6.18 generic/pending-6.18 generic/hack-6.18 qualcommax/patches-6.18; do
             for P in target/linux/$DIR/*.patch; do
               [ -e "$P" ] || continue
-              if patch -d $KT -p1 --batch --silent < "$P" >/dev/null 2>&1; then
+              BASE=$(basename "$P")
+              SKIP_THIS=0
+              for S in $SKIP; do case "$BASE" in "$S"*) SKIP_THIS=1; break;; esac; done
+              [ "$SKIP_THIS" = 1 ] && continue
+              # --forward 关键：禁止 GNU patch 静默反向应用（与编译时 plaintext 行为一致）
+              if patch -d $KT -p1 --batch --forward --silent < "$P" >/dev/null 2>&1; then
                 continue
               fi
               FILES=$(grep -E '^(\+\+\+|---) [ab]/' "$P" | sed -E 's#^[+-]{3} [ab]/##' | sort -u)
               for F in $FILES; do git -C $KT checkout -q -- "$F" 2>/dev/null || true; done
               find $KT \( -name '*.rej' -o -name '*.orig' \) -delete
-              if patch -d $KT -p1 -R --dry-run --silent < "$P" >/dev/null 2>&1; then
-                echo "RETIRED(已吸收): $DIR/$(basename "$P")"
+              if patch -d $KT -p1 -R --dry-run --forward --silent < "$P" >/dev/null 2>&1; then
+                echo "RETIRED(已吸收): $DIR/$BASE"
               else
-                echo "CONFLICT(真冲突): $DIR/$(basename "$P")"
+                echo "CONFLICT(真冲突): $DIR/$BASE"
               fi
             done
           done
