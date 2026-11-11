@@ -87,20 +87,19 @@
  	return ret;
  }
  
-@@ -3602,6 +3653,13 @@ ppp_disconnect_channel(struct channel *p
- 	ppp = rcu_replace_pointer(pch->ppp, NULL, lockdep_is_held(&pch->upl));
- 	spin_unlock(&pch->upl);
- 	if (ppp) {
+@@ -3671,6 +3671,12 @@ ppp_disconnect_channel(struct channel *pch)
+ 		 * orders removal and notification after a racing connect.
+ 		 */
+ 		mutex_lock(&ppp->channel_event_mutex);
 +		if (ppp->dev) {
 +			dev_hold(ppp->dev);
 +			raw_notifier_call_chain(&ppp_channel_connection_notifier_list,
 +					   PPP_CHANNEL_DISCONNECT, ppp->dev);
 +			dev_put(ppp->dev);
 +		}
-+
- 		/* remove it from the ppp unit's list */
  		ppp_lock(ppp);
  		list_del_rcu(&pch->clist);
+ 		last_channel = --ppp->n_channels == 0;
 @@ -3693,6 +3751,227 @@ static void *unit_find(struct idr *p, in
  	return idr_find(p, n);
  }
