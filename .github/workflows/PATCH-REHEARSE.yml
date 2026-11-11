@@ -13,7 +13,8 @@ jobs:
 
       - name: Download kernel source
         run: |
-          KVER="6.18$(grep -oP '^LINUX_VERSION-6\.18 = \K\S+' ./wrt/target/linux/generic/kernel-6.18)"
+          # 版本号取自 owrt 分支（与编译时内核对齐目标一致），补丁集来自 main
+          KVER="6.18$(curl -sL "https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/owrt/target/linux/generic/kernel-6.18" | grep -oP '^LINUX_VERSION-6\.18 = \K\S+')"
           echo "内核版本: $KVER"
           curl -sL -o /tmp/linux.tar.xz "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-$KVER.tar.xz"
           mkdir -p /tmp/linux
