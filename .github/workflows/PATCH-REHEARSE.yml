@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Clone immortalwrt main
         run: |
-          git clone --depth=1 https://github.com/VIKINGYFY/immortalwrt.git ./wrt
+          git clone --depth=1 --branch main https://github.com/VIKINGYFY/immortalwrt.git ./wrt
 
       - name: Download kernel source
         run: |
