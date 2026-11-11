@@ -90,6 +90,19 @@ UPDATE_PACKAGE "argon" "jerrykuku/luci-theme-argon" "master" "" "argon-config"
 UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "master" "pkg"
 
 # =========================
+# 源码分支：由 workflow 的 env 段导出（WRT-CORE.yml 里取自 matrix.BRANCH，QCA-ALL.yml 传参）
+# 这里显式校验：后面的 router-tool 跟随逻辑靠它区分 owrt / main，
+# 变量丢失时宁可终止，也不要静默走错分支（否则"跳过移植"那条路径形同摆设）
+# =========================
+SUMMARY() { [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+
+if [ -z "${WRT_BRANCH:-}" ]; then
+	echo ">>> 错误: 环境变量 WRT_BRANCH 未设置，无法判断源码分支（owrt / main），终止编译"
+	exit 1
+fi
+echo ">>> 源码分支: $WRT_BRANCH"
+
+# =========================
 # owrt 引用解析：同一次编译只认一个提交
 # - 默认跟随 owrt 分支 HEAD，解析成提交哈希后固定下来，后续所有下载都用这个哈希
 # - 可用 Scripts/pins.env 的 OWRT_SHA 锁定，便于复现历史固件
@@ -111,7 +124,7 @@ else
 	echo ">>> owrt 引用: $OWRT_REF（跟随 owrt HEAD，本次编译内固定，不会中途漂移）"
 fi
 
-SUMMARY() { [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+SUMMARY "- 源码分支: \`$WRT_BRANCH\`"
 SUMMARY "- owrt 引用: \`$OWRT_REF\`"
 
 # =========================
@@ -125,7 +138,7 @@ SUMMARY "- owrt 引用: \`$OWRT_REF\`"
 # 失败视为硬错误：Config 里已声明该包，缺失意味着固件功能不完整，不应静默通过
 # =========================
 RT_DIR="./package/emortal/luci-app-router-tool"
-if [ "${WRT_BRANCH:-}" = "owrt" ]; then
+if [ "$WRT_BRANCH" = "owrt" ]; then
 	echo ">>> 源码分支为 owrt，luci-app-router-tool 由源码树直接提供，跳过移植"
 	SUMMARY "- luci-app-router-tool: 源码自带（owrt 分支）"
 else
