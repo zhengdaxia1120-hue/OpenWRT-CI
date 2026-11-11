@@ -99,6 +99,17 @@ if [ -f "$KVER_FILE" ] && [ -n "$KVER_OWRT" ] && [ "$KVER_LOCAL" != "$KVER_OWRT"
 		"https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/owrt/target/linux/generic/kernel-6.18" \
 		-o "$KVER_FILE"; then
 		echo ">>> 内核版本定义已更新: $(grep 'LINUX_VERSION-6.18' "$KVER_FILE")"
+		# 清理已被新版 stable 内核吸收的重复补丁（按文件名精确匹配，不存在则无副作用）
+		for RETIRED in \
+			438-v7.3-mtd-spinand-Do-not-update-the-QE-bit-on-devices-without-one.patch \
+		; do
+			for PDIR in backport-6.18 pending-6.18 hack-6.18; do
+				if [ -f "./target/linux/generic/$PDIR/$RETIRED" ]; then
+					rm -f "./target/linux/generic/$PDIR/$RETIRED"
+					echo ">>> 已移除重复补丁: $PDIR/$RETIRED（已被 $KVER_OWRT 上游吸收）"
+				fi
+			done
+		done
 	else
 		echo ">>> 内核版本定义更新失败，保持本树原版本 $KVER_LOCAL"
 	fi
