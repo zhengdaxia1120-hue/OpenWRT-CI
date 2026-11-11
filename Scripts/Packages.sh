@@ -47,7 +47,8 @@ UPDATE_PACKAGE() {
 	fi
 
 	# 处理克隆的仓库：只拷贝目录名精确等于包名或其 luci 前端的目录
-	# 不用 -iname "*$PKG_NAME*"：仓库里形如 .github/skills/openclash-user-guide 的文档目录会被一并拷进 package/
+	# 不用 -iname "*$PKG_NAME*"：命中范围取决于 shell 通配符是否展开点目录、以及 -prune 剪枝的深度，
+	# 当前碰巧只命中 luci-app-openclash，但安全是巧合而非设计；精确匹配的命中范围可预期，且拷贝前有清单可查
 	if [[ "$PKG_SPECIAL" == "pkg" ]]; then
 		local COPIED=0
 		while read -r DIR; do
