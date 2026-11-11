@@ -83,6 +83,29 @@ if [ ! -d "./package/emortal/luci-app-router-tool" ]; then
 	rm -f "$OWRT_TARBALL"
 fi
 
+# =========================
+# 内核补丁版本对齐：跟随 owrt 分支的内核 patch 版本
+# （如 main 为 6.18.55 而 owrt 已升到 6.18.60，则自动同步版本定义，含官方 hash）
+# 仅替换版本定义文件，补丁集保持本分支原样；若个别补丁应用失败需按日志处理
+# =========================
+KVER_FILE="./target/linux/generic/kernel-6.18"
+KVER_LOCAL=$(grep -oP '^LINUX_VERSION-6\.18 = \K\S+' "$KVER_FILE" 2>/dev/null)
+KVER_OWRT=$(curl -sL --retry 3 --connect-timeout 30 \
+	"https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/owrt/target/linux/generic/kernel-6.18" \
+	| grep -oP '^LINUX_VERSION-6\.18 = \K\S+')
+if [ -f "$KVER_FILE" ] && [ -n "$KVER_OWRT" ] && [ "$KVER_LOCAL" != "$KVER_OWRT" ]; then
+	echo ">>> 内核补丁版本对齐: 本树 $KVER_LOCAL → owrt $KVER_OWRT"
+	if curl -sL --retry 3 --connect-timeout 30 \
+		"https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/owrt/target/linux/generic/kernel-6.18" \
+		-o "$KVER_FILE"; then
+		echo ">>> 内核版本定义已更新: $(grep 'LINUX_VERSION-6.18' "$KVER_FILE")"
+	else
+		echo ">>> 内核版本定义更新失败，保持本树原版本 $KVER_LOCAL"
+	fi
+else
+	echo ">>> 内核补丁版本无需对齐（本树 $KVER_LOCAL，owrt $KVER_OWRT）"
+fi
+
 #更新软件包版本
 UPDATE_VERSION() {
 	local PKG_NAME=$1
