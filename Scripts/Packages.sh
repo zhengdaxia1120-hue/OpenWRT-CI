@@ -104,12 +104,16 @@ if [ -f "$KVER_FILE" ] && [ -n "$KVER_OWRT" ] && [ "$KVER_LOCAL" != "$KVER_OWRT"
 		# - 304:     LoongArch 架构 vdso 补丁，与 qualcommax 目标无关且与新内核冲突
 		# - 0092:    IPQ5018 pinctrl pwm3 补丁，与 IPQ807x 目标无关且与新内核冲突
 		for RETIRED in \
-			backport-6.18/438-v7.3-mtd-spinand-Do-not-update-the-QE-bit-on-devices-without-one.patch \
-			backport-6.18/782-v7.3-USB-serial-option-add-Quectel-EG060W.patch \
-			pending-6.18/304-LoongArch-vdso-keep-the-prefix-map-flags.patch \
+			generic/backport-6.18/438-v7.3-mtd-spinand-Do-not-update-the-QE-bit-on-devices-without-one.patch \
+			generic/backport-6.18/782-v7.3-USB-serial-option-add-Quectel-EG060W.patch \
+			generic/pending-6.18/304-LoongArch-vdso-keep-the-prefix-map-flags.patch \
 			qualcommax/patches-6.18/0092-v7.3-pinctrl-qcom-ipq5018-add-missing-pwm3-function-on-gpio13.patch \
 		; do
-			rm -f "./target/linux/$RETIRED" && echo ">>> 已移除不兼容补丁: $RETIRED"
+			if [ -f "./target/linux/$RETIRED" ]; then
+				rm -f "./target/linux/$RETIRED" && echo ">>> 已移除不兼容补丁: $RETIRED"
+			else
+				echo ">>> 警告: 退役补丁未找到（路径或文件名有误）: $RETIRED"
+			fi
 		done
 	else
 		echo ">>> 内核版本定义更新失败，保持本树原版本 $KVER_LOCAL"
