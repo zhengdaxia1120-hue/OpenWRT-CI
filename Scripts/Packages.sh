@@ -112,6 +112,14 @@ if [ "$WRT_BRANCH" = "main" ]; then
 		exit 1
 	fi
 	cp -rf "$OVERLAY_PKG/." ./package/
+	# main 独有的 NSS 内核补丁（0600-*，提供桥接 FDB 通知等内核接口），只放入 main 构建的内核补丁目录
+	OVERLAY_KPATCH="$GITHUB_WORKSPACE/Overlay/main/kernel/qualcommax/patches-6.18"
+	if [ -d "$OVERLAY_KPATCH" ]; then
+		mkdir -p ./target/linux/qualcommax/patches-6.18
+		cp -f "$OVERLAY_KPATCH"/*.patch ./target/linux/qualcommax/patches-6.18/
+		echo ">>> main 内核补丁已叠加: $(ls "$OVERLAY_KPATCH" | wc -l) 个"
+		SUMMARY "- main 内核补丁: 叠加 $(ls "$OVERLAY_KPATCH" | wc -l) 个（0600-*）"
+	fi
 	OVERLAY_N=$(find "$OVERLAY_PKG" -mindepth 2 -maxdepth 2 -type d | wc -l)
 	echo ">>> main overlay 已叠加: $OVERLAY_N 个包目录"
 	SUMMARY "- main overlay: 叠加 $OVERLAY_N 个包目录（NSS）"
