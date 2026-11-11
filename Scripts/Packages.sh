@@ -90,153 +90,35 @@ UPDATE_PACKAGE "argon" "jerrykuku/luci-theme-argon" "master" "" "argon-config"
 UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "master" "pkg"
 
 # =========================
-# 源码分支：由 workflow 的 env 段导出（WRT-CORE.yml 里取自 matrix.BRANCH，QCA-ALL.yml 传参）
-# 这里显式校验：后面的 router-tool 跟随逻辑靠它区分 owrt / main，
-# 变量丢失时宁可终止，也不要静默走错分支（否则"跳过移植"那条路径形同摆设）
+# owrt 源码 + main overlay
+# 两个矩阵都使用 owrt 源码（见 WRT-CORE 的 Clone Code），本脚本只做"叠加"：
+#   - owrt 分支：不叠加任何内容，编译结果与上游 owrt 一致
+#   - main 分支：叠加 Overlay/main/ 中的 NSS 包与 NSS 配置（main 独有，owrt 没有）
+# 通用部分（插件、主题、配置）两边都执行
 # =========================
 SUMMARY() { [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+SUMMARY "- 源码: owrt 提交 \`${WRT_HASH:-unknown}\`"
+SUMMARY "- 分支标签: \`${WRT_BRANCH:-unknown}\`"
 
 if [ -z "${WRT_BRANCH:-}" ]; then
-	echo ">>> 错误: 环境变量 WRT_BRANCH 未设置，无法判断源码分支（owrt / main），终止编译"
-	exit 1
-fi
-echo ">>> 源码分支: $WRT_BRANCH"
-
-# =========================
-# owrt 引用解析：同一次编译只认一个提交
-# - 默认跟随 owrt 分支 HEAD，解析成提交哈希后固定下来，后续所有下载都用这个哈希
-# - 可用 Scripts/pins.env 的 OWRT_SHA 锁定，便于复现历史固件
-# - 解析失败直接终止：否则三次下载各走一次分支名，日志记录的版本和实际取用的代码会对不上
-# =========================
-if [ -f "$GITHUB_WORKSPACE/Scripts/pins.env" ]; then
-	. "$GITHUB_WORKSPACE/Scripts/pins.env"
-fi
-
-if [ -n "${OWRT_SHA:-}" ]; then
-	OWRT_REF="$OWRT_SHA"
-	echo ">>> owrt 引用: $OWRT_REF（pins.env 锁定，可复现）"
-else
-	OWRT_REF=$(git ls-remote https://github.com/VIKINGYFY/immortalwrt.git refs/heads/owrt 2>/dev/null | cut -f1)
-	if [ -z "$OWRT_REF" ]; then
-		echo ">>> 错误: 无法解析 owrt 分支 HEAD（网络不通或仓库不可达），终止编译"
-		exit 1
-	fi
-	echo ">>> owrt 引用: $OWRT_REF（跟随 owrt HEAD，本次编译内固定，不会中途漂移）"
-fi
-
-SUMMARY "- 源码分支: \`$WRT_BRANCH\`"
-SUMMARY "- owrt 引用: \`$OWRT_REF\`"
-
-# =========================
-# luci-app-router-tool（含中继AP模式）
-# 该包为 owrt 分支独有，main 分支源码树里没有，必须从 owrt 移植
-# 跟随策略（按源码分支判断，而不是按目录是否存在判断）：
-#   - 源码分支就是 owrt：包由源码树直接提供，无需移植
-#   - 其它分支（main 等）：无条件用 owrt@$OWRT_REF 覆盖
-#     这样 owrt 更新 router-tool 后，main 一定用上新版；若将来 main 自带了该包，
-#     也一律以 owrt 版本为准，日志会写明"覆盖"
-# 失败视为硬错误：Config 里已声明该包，缺失意味着固件功能不完整，不应静默通过
-# =========================
-RT_DIR="./package/emortal/luci-app-router-tool"
-if [ "$WRT_BRANCH" = "owrt" ]; then
-	echo ">>> 源码分支为 owrt，luci-app-router-tool 由源码树直接提供，跳过移植"
-	SUMMARY "- luci-app-router-tool: 源码自带（owrt 分支）"
-else
-	if [ -d "$RT_DIR" ]; then
-		echo ">>> 源码树自带 luci-app-router-tool，按跟随策略改用 owrt 版本覆盖"
-	else
-		echo ">>> 源码树缺少 luci-app-router-tool，从 owrt 移植"
-	fi
-	OWRT_TARBALL=$(mktemp)
-	if ! curl -fsSL --retry 3 --connect-timeout 30 \
-		"https://github.com/VIKINGYFY/immortalwrt/archive/${OWRT_REF}.tar.gz" -o "$OWRT_TARBALL"; then
-		rm -f "$OWRT_TARBALL"
-		echo ">>> 错误: owrt 源码包下载失败（引用 $OWRT_REF），中继AP模式无法移植"
-		exit 1
-	fi
-	OWRT_TOP=$(tar tzf "$OWRT_TARBALL" 2>/dev/null | head -1 | cut -d/ -f1)
-	rm -rf "$RT_DIR"
-	mkdir -p ./package/emortal
-	if [ -z "$OWRT_TOP" ] || ! tar xzf "$OWRT_TARBALL" --strip-components=2 \
-		-C ./package "$OWRT_TOP/package/emortal/luci-app-router-tool"; then
-		rm -f "$OWRT_TARBALL"
-		echo ">>> 错误: luci-app-router-tool 解包失败（该包可能已从 owrt 移除）"
-		exit 1
-	fi
-	rm -f "$OWRT_TARBALL"
-	if [ -f "$RT_DIR/Makefile" ]; then
-		echo ">>> luci-app-router-tool 移植成功（来源 owrt@${OWRT_REF:0:7}）"
-		SUMMARY "- luci-app-router-tool: 移植自 owrt@${OWRT_REF:0:7}"
-	else
-		echo ">>> 错误: 移植后缺少 Makefile，包结构异常"
-		exit 1
-	fi
-fi
-
-# =========================
-# 内核补丁版本对齐：跟随 owrt 分支的内核 patch 版本
-# （如 main 为 6.18.55 而 owrt 已升到 6.18.60，则自动同步版本定义，含官方 hash）
-# 仅替换版本定义文件，补丁集保持本分支原样
-# =========================
-KVER_FILE="./target/linux/generic/kernel-6.18"
-if [ ! -f "$KVER_FILE" ]; then
-	echo ">>> 警告: 本树缺少 $KVER_FILE，跳过内核版本对齐"
-	SUMMARY "- 内核版本: 未对齐（本树无 kernel-6.18 定义）"
-else
-	KVER_LOCAL=$(grep -oP '^LINUX_VERSION-6\.18 = \K\S+' "$KVER_FILE" 2>/dev/null)
-	KVER_OWRT=$(curl -fsSL --retry 3 --connect-timeout 30 \
-		"https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/${OWRT_REF}/target/linux/generic/kernel-6.18" 2>/dev/null \
-		| grep -oP '^LINUX_VERSION-6\.18 = \K\S+')
-
-	if [ -z "$KVER_OWRT" ]; then
-		echo ">>> 警告: 无法读取 owrt 内核版本定义（引用 $OWRT_REF，本树 $KVER_LOCAL），跳过对齐"
-		SUMMARY "- 内核版本: 对齐未执行（读取 owrt 定义失败，本树 $KVER_LOCAL）"
-	elif [ "$KVER_LOCAL" = "$KVER_OWRT" ]; then
-		echo ">>> 内核版本已与 owrt 一致（$KVER_LOCAL），无需对齐"
-		SUMMARY "- 内核版本: $KVER_LOCAL（已与 owrt 一致）"
-	else
-		echo ">>> 内核补丁版本对齐: 本树 $KVER_LOCAL → owrt $KVER_OWRT"
-		if curl -fsSL --retry 3 --connect-timeout 30 \
-			"https://raw.githubusercontent.com/VIKINGYFY/immortalwrt/${OWRT_REF}/target/linux/generic/kernel-6.18" \
-			-o "$KVER_FILE"; then
-			echo ">>> 内核版本定义已更新: $(grep 'LINUX_VERSION-6.18' "$KVER_FILE")"
-			SUMMARY "- 内核版本: $KVER_LOCAL → $KVER_OWRT（对齐 owrt）"
-		else
-			echo ">>> 错误: 内核版本定义更新失败，保持本树原版本 $KVER_LOCAL"
-			exit 1
-		fi
-	fi
-fi
-
-# =========================
-# 退役补丁：无条件执行（与版本号是否对齐无关，防止版本已对齐时补丁被重新启用）
-# 清单唯一来源：Scripts/retired-patches.txt
-#   - 编译脚本按它会删除对应补丁
-#   - .github/workflows/PATCH-REHEARSE.yml 按同一份文件跳过这些补丁
-# 两边不再各自维护清单，改一次即可，演练结果与真实编译不会再分叉
-# =========================
-RETIRED_FILE="$GITHUB_WORKSPACE/Scripts/retired-patches.txt"
-if [ ! -f "$RETIRED_FILE" ]; then
-	echo ">>> 错误: 缺少退役补丁清单 $RETIRED_FILE，终止编译"
+	echo ">>> 错误: 环境变量 WRT_BRANCH 未设置，终止编译"
 	exit 1
 fi
 
-RETIRED_DONE=0
-RETIRED_MISSING=0
-while IFS= read -r RETIRED || [ -n "$RETIRED" ]; do
-	RETIRED=$(echo "$RETIRED" | tr -d '\r' | sed 's/[[:space:]]*$//')
-	[ -z "$RETIRED" ] && continue
-	case "$RETIRED" in \#*) continue ;; esac
-	if [ -f "./target/linux/$RETIRED" ]; then
-		rm -f "./target/linux/$RETIRED" && echo ">>> 已移除退役补丁: $RETIRED"
-		RETIRED_DONE=$((RETIRED_DONE + 1))
-	else
-		echo ">>> 警告: 退役补丁未找到（路径或文件名有误，请检查清单）: $RETIRED"
-		RETIRED_MISSING=$((RETIRED_MISSING + 1))
+if [ "$WRT_BRANCH" = "main" ]; then
+	OVERLAY_PKG="$GITHUB_WORKSPACE/Overlay/main/package"
+	if [ ! -d "$OVERLAY_PKG" ]; then
+		echo ">>> 错误: 缺少 main overlay 目录 $OVERLAY_PKG，终止编译"
+		exit 1
 	fi
-done < "$RETIRED_FILE"
-echo ">>> 退役补丁处理完成: 移除 $RETIRED_DONE 个，清单中缺失 $RETIRED_MISSING 个"
-SUMMARY "- 退役补丁: 移除 $RETIRED_DONE 个，缺失 $RETIRED_MISSING 个"
+	cp -rf "$OVERLAY_PKG/." ./package/
+	OVERLAY_N=$(find "$OVERLAY_PKG" -mindepth 2 -maxdepth 2 -type d | wc -l)
+	echo ">>> main overlay 已叠加: $OVERLAY_N 个包目录"
+	SUMMARY "- main overlay: 叠加 $OVERLAY_N 个包目录（NSS）"
+else
+	echo ">>> owrt 分支: 不叠加 overlay，源码保持上游原样"
+	SUMMARY "- overlay: 无（owrt 上游原样）"
+fi
 
 #更新软件包版本
 UPDATE_VERSION() {

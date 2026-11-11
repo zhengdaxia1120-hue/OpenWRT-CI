@@ -118,7 +118,17 @@ jobs:
       - name: Clone Code
         id: clone-code
         run: |
-          git clone --depth=1 --single-branch --branch $WRT_BRANCH $WRT_REPO ./wrt/
+          # 两个矩阵都使用 owrt 源码；main 与 owrt 的差异只在 Packages.sh 叠加的 overlay 中
+          # Scripts/pins.env 设置了 OWRT_SHA 时锁定到该提交，否则取 owrt 分支 HEAD
+          . ./Scripts/pins.env 2>/dev/null || true
+          if [ -n "${OWRT_SHA:-}" ]; then
+            git init -q ./wrt/
+            git -C ./wrt/ remote add origin $WRT_REPO
+            git -C ./wrt/ fetch -q --depth=1 origin "$OWRT_SHA"
+            git -C ./wrt/ checkout -q FETCH_HEAD
+          else
+            git clone --depth=1 --single-branch --branch owrt $WRT_REPO ./wrt/
+          fi
 
           cd ./wrt/
           WRT_HASH=$(git rev-parse HEAD)
@@ -180,6 +190,11 @@ jobs:
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt >> .config
           else
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
+          fi
+
+          # main 独有的 NSS 配置（owrt 分支不加，保持上游原样）
+          if [ "$WRT_BRANCH" = "main" ]; then
+            cat $GITHUB_WORKSPACE/Overlay/main/config/NSS.txt >> .config
           fi
 
           $GITHUB_WORKSPACE/Scripts/Settings.sh
