@@ -107,6 +107,7 @@ if [ -f "$KVER_FILE" ] && [ -n "$KVER_OWRT" ] && [ "$KVER_LOCAL" != "$KVER_OWRT"
 			generic/backport-6.18/438-v7.3-mtd-spinand-Do-not-update-the-QE-bit-on-devices-without-one.patch \
 			generic/backport-6.18/782-v7.3-USB-serial-option-add-Quectel-EG060W.patch \
 			generic/backport-6.18/787-v7.3-net-usb-qmi_wwan-add-Quectel-EG120K-EA.patch \
+			generic/backport-6.18/950-v7.3-cgroup-fix-spurious-SIGKILL-of-CLONE_INTO_CGROUP-children.patch \
 			generic/pending-6.18/304-LoongArch-vdso-keep-the-prefix-map-flags.patch \
 			qualcommax/patches-6.18/0092-v7.3-pinctrl-qcom-ipq5018-add-missing-pwm3-function-on-gpio13.patch \
 		; do
