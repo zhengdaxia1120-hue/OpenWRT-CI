@@ -62,6 +62,43 @@ UPDATE_PACKAGE "argon" "jerrykuku/luci-theme-argon" "master"
 # =========================
 UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "master" "pkg"
 
+# =========================
+# 中继AP模式：luci-app-router-tool
+# 该包只在 owrt 分支存在，main 源码树里没有（package/emortal 下无此目录），
+# 而 Config/GENERAL.txt 已声明 CONFIG_PACKAGE_luci-app-router-tool=y，
+# 所以 main 编译必须从 owrt 取；取不到就终止，不能静默少一个功能。
+# 源码分支本身就是 owrt 时由源码树提供，无需移植。
+# =========================
+RT_DIR="./package/emortal/luci-app-router-tool"
+if [ "${WRT_BRANCH:-}" = "owrt" ] && [ -d "$RT_DIR" ]; then
+	echo ">>> 源码分支为 owrt，luci-app-router-tool 由源码树自带，跳过移植"
+else
+	echo ">>> 从 owrt 分支移植 luci-app-router-tool（中继AP模式）..."
+	OWRT_TARBALL=$(mktemp)
+	if ! curl -fsSL --retry 3 --connect-timeout 30 \
+		"https://github.com/VIKINGYFY/immortalwrt/archive/owrt.tar.gz" -o "$OWRT_TARBALL"; then
+		rm -f "$OWRT_TARBALL"
+		echo ">>> 错误: owrt 源码包下载失败，中继AP模式无法移植"
+		exit 1
+	fi
+	OWRT_TOP=$(tar tzf "$OWRT_TARBALL" 2>/dev/null | head -1 | cut -d/ -f1)
+	rm -rf "$RT_DIR"
+	mkdir -p ./package/emortal
+	if [ -z "$OWRT_TOP" ] || ! tar xzf "$OWRT_TARBALL" --strip-components=2 \
+		-C ./package "$OWRT_TOP/package/emortal/luci-app-router-tool"; then
+		rm -f "$OWRT_TARBALL"
+		echo ">>> 错误: luci-app-router-tool 解包失败（该包可能已从 owrt 移除）"
+		exit 1
+	fi
+	rm -f "$OWRT_TARBALL"
+	if [ -f "$RT_DIR/Makefile" ]; then
+		echo ">>> luci-app-router-tool 移植成功: $(grep -E '^PKG_VERSION' "$RT_DIR/Makefile" | tr '\n' ' ')"
+	else
+		echo ">>> 错误: 移植后缺少 Makefile，包结构异常"
+		exit 1
+	fi
+fi
+
 #更新软件包版本
 UPDATE_VERSION() {
 	local PKG_NAME=$1
