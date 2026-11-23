@@ -49,7 +49,7 @@ UPDATE_PACKAGE() {
 UPDATE_PACKAGE "argon" "jerrykuku/luci-theme-argon" "master"
 # UPDATE_PACKAGE "aurora" "eamonxg/luci-theme-aurora" "master"
 # UPDATE_PACKAGE "aurora-config" "eamonxg/luci-app-aurora-config" "master"
-
+UPDATE_PACKAGE "OpenAppFilter" "destan19/OpenAppFilter" "master"
 # =========================
 # UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" " luci-app-homeproxy "
 
